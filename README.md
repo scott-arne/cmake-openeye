@@ -47,11 +47,12 @@ Linking against a target automatically pulls in its transitive dependencies.
 | `OpenEye::OEChem` | Yes | `OpenEye::OESystem`, `OpenEye::OEMath` |
 | `OpenEye::OESystem` | Yes | `OpenEye::OEPlatform` |
 | `OpenEye::OEPlatform` | Yes | `OpenEye::zstd` (if available), `ZLIB::ZLIB` |
-| `OpenEye::OEMath` | Yes | -- |
+| `OpenEye::OEMath` | Yes | `OpenEye::OESystem` |
 | `OpenEye::OEGraphSim` | No | `OpenEye::OEChem` |
 | `OpenEye::OEMedChem` | No | `OpenEye::OEChem` |
 | `OpenEye::OEFizzChem` | No | `OpenEye::OEChem` |
 | `OpenEye::OEGrid` | No | `OpenEye::OESystem`, `OpenEye::OEFizzChem` (if available) |
+| `OpenEye::OEBio` | No | `OpenEye::OEChem`, `OpenEye::OEGrid` (if available) |
 | `OpenEye::zstd` | No | -- |
 
 #### Result Variables
@@ -61,6 +62,7 @@ Linking against a target automatically pulls in its transitive dependencies.
 | `OpenEye_FOUND` | `TRUE` if the required libraries were found |
 | `OpenEye_VERSION` | Library version string (e.g., `4.3.0.1`) |
 | `OpenEye_LIBRARY_TYPE` | `SHARED` or `STATIC` |
+| `OpenEye_Bio_FOUND` | `TRUE` if OEBio was found |
 | `OpenEye_GraphSim_FOUND` | `TRUE` if OEGraphSim was found |
 | `OpenEye_MedChem_FOUND` | `TRUE` if OEMedChem was found |
 | `OpenEye_Grid_FOUND` | `TRUE` if OEGrid was found |
@@ -155,6 +157,27 @@ openeye_add_swig_module(
     INIT_PY ${CMAKE_SOURCE_DIR}/python/mylib/__init__.py
 )
 ```
+
+## Testing
+
+The `tests/` directory contains a CTest suite that verifies library discovery, imported target creation, and link-order correctness for all OpenEye libraries. Each library gets its own small C++ test app, plus a combined test that links every discovered library into a single executable to catch static-library link-order issues.
+
+### Running the Tests
+
+```bash
+cd tests
+cmake --preset default
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+The default preset points `OPENEYE_ROOT` at a local toolkit installation. Override it for your environment:
+
+```bash
+cmake -B build -DOPENEYE_ROOT=/path/to/openeye/toolkits
+```
+
+You can also create a `tests/CMakeUserPresets.json` (gitignored) with your own paths.
 
 ## Platform Support
 

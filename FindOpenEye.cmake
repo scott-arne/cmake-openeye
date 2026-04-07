@@ -18,6 +18,7 @@
 #   OpenEye::OEMath     - OEMath library
 #   OpenEye::OEGraphSim - OEGraphSim library (if available)
 #   OpenEye::OEMedChem  - OEMedChem library (if available)
+#   OpenEye::OEBio      - OEBio library (if available)
 #   OpenEye::OEGrid     - OEGrid library (if available)
 #   OpenEye::OEFizzChem - OEFizzChem library (if available)
 #   OpenEye::zstd       - Bundled zstd library (if available)
@@ -28,6 +29,7 @@
 #   OpenEye_LIBRARY_TYPE   - SHARED or STATIC
 #   OpenEye_GraphSim_FOUND - TRUE if OEGraphSim was found
 #   OpenEye_MedChem_FOUND  - TRUE if OEMedChem was found
+#   OpenEye_Bio_FOUND      - TRUE if OEBio was found
 #   OpenEye_Grid_FOUND     - TRUE if OEGrid was found
 
 option(OPENEYE_USE_SHARED "Prefer shared OpenEye libraries for dynamic linking" OFF)
@@ -114,6 +116,7 @@ find_openeye_library(OEMATH_LIBRARY oemath)
 # Find optional libraries
 find_openeye_library(OEGRAPHSIM_LIBRARY oegraphsim)
 find_openeye_library(OEMEDCHEM_LIBRARY oemedchem)
+find_openeye_library(OEBIO_LIBRARY oebio)
 find_openeye_library(OEGRID_LIBRARY oegrid)
 find_openeye_library(OEFIZZCHEM_LIBRARY oefizzchem)
 
@@ -195,13 +198,6 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem)
         )
     endif()
 
-    # Create imported target for OEMath
-    add_library(OpenEye::OEMath UNKNOWN IMPORTED)
-    set_target_properties(OpenEye::OEMath PROPERTIES
-        IMPORTED_LOCATION "${OEMATH_LIBRARY}"
-        INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
-    )
-
     # OEPlatform depends on zlib and zstd
     add_library(OpenEye::OEPlatform UNKNOWN IMPORTED)
     set_target_properties(OpenEye::OEPlatform PROPERTIES
@@ -223,6 +219,14 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem)
         IMPORTED_LOCATION "${OESYSTEM_LIBRARY}"
         INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
         INTERFACE_LINK_LIBRARIES "OpenEye::OEPlatform"
+    )
+
+    # OEMath depends on OESystem (oemath/matrix.h includes oesystem.h)
+    add_library(OpenEye::OEMath UNKNOWN IMPORTED)
+    set_target_properties(OpenEye::OEMath PROPERTIES
+        IMPORTED_LOCATION "${OEMATH_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+        INTERFACE_LINK_LIBRARIES "OpenEye::OESystem"
     )
 
     # OEChem depends on OESystem and OEMath
@@ -284,6 +288,25 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem)
         set(OpenEye_Grid_FOUND TRUE)
     endif()
 
+    # Optional: OEBio depends on OEChem and OEGrid (uses OESkewGrid, OEScalarGrid, OEXtal)
+    if(OEBIO_LIBRARY)
+        add_library(OpenEye::OEBio UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEBio PROPERTIES
+            IMPORTED_LOCATION "${OEBIO_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+        )
+        if(OEGRID_LIBRARY)
+            set_property(TARGET OpenEye::OEBio PROPERTY
+                INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEGrid"
+            )
+        else()
+            set_property(TARGET OpenEye::OEBio PROPERTY
+                INTERFACE_LINK_LIBRARIES "OpenEye::OEChem"
+            )
+        endif()
+        set(OpenEye_Bio_FOUND TRUE)
+    endif()
+
     # Export the library type for use in other CMake files
     set(OpenEye_LIBRARY_TYPE ${OPENEYE_LIBRARY_TYPE} CACHE STRING "OpenEye library type (SHARED or STATIC)")
 endif()
@@ -295,6 +318,7 @@ mark_as_advanced(
     OEPLATFORM_LIBRARY
     OEGRAPHSIM_LIBRARY
     OEMEDCHEM_LIBRARY
+    OEBIO_LIBRARY
     OEGRID_LIBRARY
     OEFIZZCHEM_LIBRARY
     OEMATH_LIBRARY
