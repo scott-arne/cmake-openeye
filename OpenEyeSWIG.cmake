@@ -335,10 +335,22 @@ function(openeye_add_swig_module)
         set(_BUILD_INFO_VERSION "${OpenEye_VERSION}")
     endif()
 
-    # Collect expected library filenames for runtime compatibility (shared only)
+    # Collect expected library filenames for runtime compatibility (shared only).
+    # Auto-detect all OpenEye library variables found by FindOpenEye.cmake,
+    # then append any additional variables specified via EXPECTED_LIB_VARS.
+    set(_ALL_OE_LIB_VARS
+        OECHEM_LIBRARY OESYSTEM_LIBRARY OEPLATFORM_LIBRARY OEMATH_LIBRARY
+        OEZSTD_LIBRARY OEGRAPHSIM_LIBRARY OEMEDCHEM_LIBRARY
+        OEBIO_LIBRARY OEGRID_LIBRARY OEFIZZCHEM_LIBRARY
+    )
+    if(ARG_EXPECTED_LIB_VARS)
+        list(APPEND _ALL_OE_LIB_VARS ${ARG_EXPECTED_LIB_VARS})
+        list(REMOVE_DUPLICATES _ALL_OE_LIB_VARS)
+    endif()
+
     set(_EXPECTED_LIBS "")
-    if(OpenEye_LIBRARY_TYPE STREQUAL "SHARED" AND ARG_EXPECTED_LIB_VARS)
-        foreach(_LIB_VAR ${ARG_EXPECTED_LIB_VARS})
+    if(OpenEye_LIBRARY_TYPE STREQUAL "SHARED")
+        foreach(_LIB_VAR ${_ALL_OE_LIB_VARS})
             if(${_LIB_VAR})
                 get_filename_component(_LIB_NAME "${${_LIB_VAR}}" NAME)
                 if(_EXPECTED_LIBS)
