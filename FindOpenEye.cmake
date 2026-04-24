@@ -145,8 +145,32 @@ endif()
 # Restore CMAKE_FIND_LIBRARY_SUFFIXES before finding system libraries
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${_SAVED_CMAKE_FIND_LIBRARY_SUFFIXES})
 
-# Find system zlib
-find_package(ZLIB REQUIRED)
+# Find system zlib. On Windows zlib isn't a system library, so fall back to
+# FetchContent so downstream projects don't need to provide it themselves.
+find_package(ZLIB QUIET)
+if(NOT ZLIB_FOUND)
+    if(WIN32)
+        message(STATUS "OpenEye: ZLIB not found; fetching zlib v1.3.1 for Windows build")
+        include(FetchContent)
+        set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
+        FetchContent_Declare(
+            zlib
+            GIT_REPOSITORY https://github.com/madler/zlib.git
+            GIT_TAG v1.3.1
+            GIT_SHALLOW TRUE
+        )
+        FetchContent_MakeAvailable(zlib)
+        set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR};${zlib_BINARY_DIR}" CACHE PATH "" FORCE)
+        set(ZLIB_LIBRARY zlibstatic CACHE STRING "" FORCE)
+        set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
+        if(NOT TARGET ZLIB::ZLIB)
+            add_library(ZLIB::ZLIB ALIAS zlibstatic)
+        endif()
+    else()
+        find_package(ZLIB REQUIRED)
+    endif()
+endif()
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(OpenEye
@@ -211,6 +235,13 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem)
     else()
         set_property(TARGET OpenEye::OEPlatform APPEND PROPERTY
             INTERFACE_LINK_LIBRARIES "ZLIB::ZLIB"
+        )
+    endif()
+
+    # OEPlatform's Windows hostinfo uses Winsock and Netbios.
+    if(WIN32)
+        set_property(TARGET OpenEye::OEPlatform APPEND PROPERTY
+            INTERFACE_LINK_LIBRARIES "ws2_32;netapi32"
         )
     endif()
 

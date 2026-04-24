@@ -102,6 +102,15 @@ function(openeye_add_swig_module)
         target_compile_definitions(${_TARGET_NAME} PRIVATE
             Py_LIMITED_API=0x030A0000
         )
+        if(WIN32)
+            # pyconfig.h auto-links python3.lib via #pragma comment under
+            # Py_LIMITED_API, but the pragma uses the short name — so the
+            # Python libs directory must be on the linker search path.
+            get_filename_component(_OESWIG_PY_LIB_DIR
+                "${Python3_LIBRARY_RELEASE}" DIRECTORY)
+            target_link_directories(${_TARGET_NAME} PRIVATE
+                "${_OESWIG_PY_LIB_DIR}")
+        endif()
         message(STATUS "Building ${ARG_NAME} with Python stable ABI (abi3) for Python 3.10+")
     endif()
 
