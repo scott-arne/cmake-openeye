@@ -147,28 +147,31 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ${_SAVED_CMAKE_FIND_LIBRARY_SUFFIXES})
 
 # Find system zlib. On Windows zlib isn't a system library, so fall back to
 # FetchContent so downstream projects don't need to provide it themselves.
-find_package(ZLIB QUIET)
-if(NOT ZLIB_FOUND)
-    if(WIN32)
-        message(STATUS "OpenEye: ZLIB not found; fetching zlib v1.3.1 for Windows build")
-        include(FetchContent)
-        set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
-        FetchContent_Declare(
-            zlib
-            GIT_REPOSITORY https://github.com/madler/zlib.git
-            GIT_TAG v1.3.1
-            GIT_SHALLOW TRUE
-        )
-        FetchContent_MakeAvailable(zlib)
-        set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR};${zlib_BINARY_DIR}" CACHE PATH "" FORCE)
-        set(ZLIB_LIBRARY zlibstatic CACHE STRING "" FORCE)
-        set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
-        if(NOT TARGET ZLIB::ZLIB)
-            add_library(ZLIB::ZLIB ALIAS zlibstatic)
+# Skip ZLIB in script mode (for tests) since find_package cannot create targets.
+if(NOT CMAKE_SCRIPT_MODE_FILE)
+    find_package(ZLIB QUIET)
+    if(NOT ZLIB_FOUND)
+        if(WIN32)
+            message(STATUS "OpenEye: ZLIB not found; fetching zlib v1.3.1 for Windows build")
+            include(FetchContent)
+            set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+            set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
+            FetchContent_Declare(
+                zlib
+                GIT_REPOSITORY https://github.com/madler/zlib.git
+                GIT_TAG v1.3.1
+                GIT_SHALLOW TRUE
+            )
+            FetchContent_MakeAvailable(zlib)
+            set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR};${zlib_BINARY_DIR}" CACHE PATH "" FORCE)
+            set(ZLIB_LIBRARY zlibstatic CACHE STRING "" FORCE)
+            set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
+            if(NOT TARGET ZLIB::ZLIB)
+                add_library(ZLIB::ZLIB ALIAS zlibstatic)
+            endif()
+        else()
+            find_package(ZLIB REQUIRED)
         endif()
-    else()
-        find_package(ZLIB REQUIRED)
     endif()
 endif()
 
@@ -213,7 +216,7 @@ if(OpenEye_FOUND)
     endif()
 endif()
 
-if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem)
+if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     # Create imported target for zstd if found
     if(OEZSTD_LIBRARY AND NOT TARGET OpenEye::zstd)
         add_library(OpenEye::zstd UNKNOWN IMPORTED)
@@ -340,6 +343,32 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem)
 
     # Export the library type for use in other CMake files
     set(OpenEye_LIBRARY_TYPE ${OPENEYE_LIBRARY_TYPE} CACHE STRING "OpenEye library type (SHARED or STATIC)")
+endif()
+
+# Detect the OpenEye SDK major year (e.g., 2024, 2025). The dep graph changes
+# across SDK majors (notably OESpruce in 2025.2+), so downstream logic may
+# condition on OpenEye_SDK_MAJOR.
+set(OpenEye_SDK_MAJOR "")
+if(OPENEYE_INCLUDE_DIR AND EXISTS "${OPENEYE_INCLUDE_DIR}/openeye.h")
+    file(STRINGS "${OPENEYE_INCLUDE_DIR}/openeye.h" _OE_RELEASE_LINE
+        REGEX "OEToolkitsRelease[ \t]+\"[0-9]+\\.[0-9]+")
+    if(_OE_RELEASE_LINE)
+        string(REGEX MATCH "\"([0-9]+)\\." _MATCH "${_OE_RELEASE_LINE}")
+        set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
+    endif()
+endif()
+# Fallback: extract year from install path (e.g., .../toolkits/2025.2.1/...)
+if(NOT OpenEye_SDK_MAJOR AND OPENEYE_INCLUDE_DIR)
+    string(REGEX MATCH "/(20[0-9][0-9])\\.[0-9]+" _MATCH "${OPENEYE_INCLUDE_DIR}")
+    if(CMAKE_MATCH_1)
+        set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
+    endif()
+endif()
+if(NOT OpenEye_SDK_MAJOR)
+    set(OpenEye_SDK_MAJOR "2025")
+    message(WARNING "OpenEye: Could not detect SDK major year, defaulting to ${OpenEye_SDK_MAJOR}")
+else()
+    message(STATUS "OpenEye: Detected SDK major year ${OpenEye_SDK_MAJOR}")
 endif()
 
 mark_as_advanced(

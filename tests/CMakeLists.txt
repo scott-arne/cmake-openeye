@@ -188,3 +188,18 @@ add_test(
 set_tests_properties(find_openeye_python PROPERTIES
     PASS_REGULAR_EXPRESSION "(PASS|SKIP)"
 )
+
+# ---------------------------------------------------------------------------
+# SDK major year detection test (script-mode, like find_openeye_python)
+# ---------------------------------------------------------------------------
+add_test(
+    NAME test_sdk_major
+    COMMAND ${CMAKE_COMMAND}
+        -DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/..
+        -DOPENEYE_ROOT=${OPENEYE_ROOT}
+        -DOPENEYE_LIB_DIR=${OPENEYE_LIB_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_sdk_major.cmake
+)
+set_tests_properties(test_sdk_major PROPERTIES
+    PASS_REGULAR_EXPRESSION "PASS: OpenEye_SDK_MAJOR=20[0-9][0-9]"
+)
