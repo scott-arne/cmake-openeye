@@ -54,6 +54,22 @@ Linking against a target automatically pulls in its transitive dependencies.
 | `OpenEye::OEGrid` | No | `OpenEye::OESystem`, `OpenEye::OEFizzChem` (if available) |
 | `OpenEye::OEBio` | No | `OpenEye::OEChem`, `OpenEye::OEGrid` (if available) |
 | `OpenEye::zstd` | No | -- |
+| `OpenEye::OEOpt` | No | `OpenEye::OESystem` |
+| `OpenEye::OEMolPotential` | No | `OpenEye::OEChem`, `OpenEye::OEOpt` |
+| `OpenEye::OEHermite` | No | `OpenEye::OEChem`, `OpenEye::OEOpt` |
+| `OpenEye::OEShape` | No | `OpenEye::OEChem`, `OpenEye::OEBio`, `OpenEye::OEGrid`, `OpenEye::OEOpt`, `OpenEye::OEMolPotential`, `OpenEye::OEHermite` |
+| `OpenEye::OEZap` | No | `OpenEye::OEChem`, `OpenEye::OEGrid` |
+| `OpenEye::OESpicoli` | No | `OpenEye::OEChem`, `OpenEye::OEZap`, `OpenEye::OEBio` |
+| `OpenEye::OESiteHopper` | No | `OpenEye::OEChem`, `OpenEye::OEShape`, `OpenEye::OESpicoli` |
+| `OpenEye::OEMMFF` | No | `OpenEye::OEChem`, `OpenEye::OEMolPotential` |
+| `OpenEye::OEFF` | No | `OpenEye::OEChem` |
+| `OpenEye::OESzybki` | No | `OpenEye::OEChem`, `OpenEye::OEMMFF`, `OpenEye::OEFF`, `OpenEye::OEBio` |
+| `OpenEye::OEQuacpac` | No | `OpenEye::OEChem`, `OpenEye::OESzybki` |
+| `OpenEye::OEOmega2` | No | `OpenEye::OEChem`, `OpenEye::OEMMFF` |
+| `OpenEye::OESheffield` | No | `OpenEye::OEChem`, `OpenEye::OEMolPotential`, `OpenEye::OEFizzChem`, `OpenEye::OEGrid`, `OpenEye::OEZap` |
+| `OpenEye::OESpruce` | No | `OpenEye::OEChem`, `OpenEye::OEBio`, `OpenEye::OESiteHopper` (+ `OEQuacpac`, `OEMMFF`, `OEOmega2`, `OESheffield` on SDK 2025+) |
+| `OpenEye::OEDepict` | No | `OpenEye::OEChem` |
+| `OpenEye::OEIUPAC` | No | `OpenEye::OEChem` |
 
 #### Result Variables
 
@@ -66,6 +82,7 @@ Linking against a target automatically pulls in its transitive dependencies.
 | `OpenEye_GraphSim_FOUND` | `TRUE` if OEGraphSim was found |
 | `OpenEye_MedChem_FOUND` | `TRUE` if OEMedChem was found |
 | `OpenEye_Grid_FOUND` | `TRUE` if OEGrid was found |
+| `OpenEye_SDK_MAJOR` | Detected marketing year (e.g., `2025`); drives OESpruce dep-graph selection |
 
 #### Basic Usage
 
