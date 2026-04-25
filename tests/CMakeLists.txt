@@ -200,6 +200,24 @@ if(TARGET OpenEye::OEShape)
 endif()
 
 # ---------------------------------------------------------------------------
+# CMake target-graph assertion test (script-mode)
+# Exhaustively verifies that every expected OpenEye:: imported target exists
+# with the correct INTERFACE_LINK_LIBRARIES. A typo in FindOpenEye.cmake's
+# dep graph will fail this test without requiring a compiler.
+# ---------------------------------------------------------------------------
+add_test(
+    NAME cmake_target_assertions
+    COMMAND ${CMAKE_COMMAND}
+        -DOPENEYE_ROOT=${OPENEYE_ROOT}
+        -DOPENEYE_LIB_DIR=${OPENEYE_LIB_DIR}
+        -DDRIVER_DIR=${CMAKE_CURRENT_BINARY_DIR}/target_assertions_driver
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_target_assertions.cmake
+)
+set_tests_properties(cmake_target_assertions PROPERTIES
+    PASS_REGULAR_EXPRESSION "PASS: all target assertions satisfied"
+)
+
+# ---------------------------------------------------------------------------
 # FindOpenEyePython script-mode test
 # Runs in a subprocess so it does not affect the current build.
 # The test is expected to either succeed (if openeye-toolkits is installed)
