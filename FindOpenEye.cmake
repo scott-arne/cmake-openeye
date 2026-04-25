@@ -22,15 +22,47 @@
 #   OpenEye::OEGrid     - OEGrid library (if available)
 #   OpenEye::OEFizzChem - OEFizzChem library (if available)
 #   OpenEye::zstd       - Bundled zstd library (if available)
+#   OpenEye::OEOpt          - OEOpt library (if available)
+#   OpenEye::OEMolPotential - OEMolPotential library (if available)
+#   OpenEye::OEHermite      - OEHermite library (if available)
+#   OpenEye::OEShape        - OEShape library (if available)
+#   OpenEye::OEZap          - OEZap library (if available)
+#   OpenEye::OESpicoli      - OESpicoli library (if available)
+#   OpenEye::OESiteHopper   - OESiteHopper library (if available)
+#   OpenEye::OEMMFF         - OEMMFF library (if available)
+#   OpenEye::OEFF           - OEFF library (if available)
+#   OpenEye::OESzybki       - OESzybki library (if available)
+#   OpenEye::OEQuacpac      - OEQuacpac library (if available)
+#   OpenEye::OEOmega2       - OEOmega2 library (if available)
+#   OpenEye::OESheffield    - OESheffield library (if available)
+#   OpenEye::OESpruce       - OESpruce library (if available)
+#   OpenEye::OEDepict       - OEDepict library (if available)
+#   OpenEye::OEIUPAC        - OEIUPAC library (if available)
 #
 # The following variables are set:
-#   OpenEye_FOUND          - TRUE if OpenEye was found
-#   OpenEye_VERSION        - Version string (e.g., "4.3.0.1")
-#   OpenEye_LIBRARY_TYPE   - SHARED or STATIC
-#   OpenEye_GraphSim_FOUND - TRUE if OEGraphSim was found
-#   OpenEye_MedChem_FOUND  - TRUE if OEMedChem was found
-#   OpenEye_Bio_FOUND      - TRUE if OEBio was found
-#   OpenEye_Grid_FOUND     - TRUE if OEGrid was found
+#   OpenEye_FOUND              - TRUE if OpenEye was found
+#   OpenEye_VERSION            - Version string (e.g., "4.3.0.1")
+#   OpenEye_LIBRARY_TYPE       - SHARED or STATIC
+#   OpenEye_GraphSim_FOUND     - TRUE if OEGraphSim was found
+#   OpenEye_MedChem_FOUND      - TRUE if OEMedChem was found
+#   OpenEye_Bio_FOUND          - TRUE if OEBio was found
+#   OpenEye_Grid_FOUND         - TRUE if OEGrid was found
+#   OpenEye_Opt_FOUND          - TRUE if OEOpt was found
+#   OpenEye_MolPotential_FOUND - TRUE if OEMolPotential was found
+#   OpenEye_Hermite_FOUND      - TRUE if OEHermite was found
+#   OpenEye_Shape_FOUND        - TRUE if OEShape was found
+#   OpenEye_Zap_FOUND          - TRUE if OEZap was found
+#   OpenEye_Spicoli_FOUND      - TRUE if OESpicoli was found
+#   OpenEye_SiteHopper_FOUND   - TRUE if OESiteHopper was found
+#   OpenEye_MMFF_FOUND         - TRUE if OEMMFF was found
+#   OpenEye_FF_FOUND           - TRUE if OEFF was found
+#   OpenEye_Szybki_FOUND       - TRUE if OESzybki was found
+#   OpenEye_Quacpac_FOUND      - TRUE if OEQuacpac was found
+#   OpenEye_Omega2_FOUND       - TRUE if OEOmega2 was found
+#   OpenEye_Sheffield_FOUND    - TRUE if OESheffield was found
+#   OpenEye_Spruce_FOUND       - TRUE if OESpruce was found
+#   OpenEye_Depict_FOUND       - TRUE if OEDepict was found
+#   OpenEye_IUPAC_FOUND        - TRUE if OEIUPAC was found
 
 option(OPENEYE_USE_SHARED "Prefer shared OpenEye libraries for dynamic linking" OFF)
 set(OPENEYE_LIB_DIR "" CACHE PATH "Override OpenEye library directory (e.g., from openeye-toolkits Python package)")
@@ -120,6 +152,24 @@ find_openeye_library(OEBIO_LIBRARY oebio)
 find_openeye_library(OEGRID_LIBRARY oegrid)
 find_openeye_library(OEFIZZCHEM_LIBRARY oefizzchem)
 
+# v1.1.0: additional library discovery for geometry/optimization
+find_openeye_library(OEOPT_LIBRARY oeopt)
+find_openeye_library(OEMOLPOTENTIAL_LIBRARY oemolpotential)
+find_openeye_library(OEHERMITE_LIBRARY oehermite)
+find_openeye_library(OESHAPE_LIBRARY oeshape)
+find_openeye_library(OEZAP_LIBRARY oezap)
+find_openeye_library(OESPICOLI_LIBRARY oespicoli)
+find_openeye_library(OESITEHOPPER_LIBRARY oesitehopper)
+find_openeye_library(OEMMFF_LIBRARY oemmff)
+find_openeye_library(OEFF_LIBRARY oeff)
+find_openeye_library(OESZYBKI_LIBRARY oeszybki)
+find_openeye_library(OEQUACPAC_LIBRARY oequacpac)
+find_openeye_library(OEOMEGA2_LIBRARY oeomega2)
+find_openeye_library(OESHEFFIELD_LIBRARY oesheffield)
+find_openeye_library(OESPRUCE_LIBRARY oespruce)
+find_openeye_library(OEDEPICT_LIBRARY oedepict)
+find_openeye_library(OEIUPAC_LIBRARY oeiupac)
+
 # Find bundled zstd library (OpenEye bundles this) - uses different naming
 if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
     file(GLOB _ZSTD_LIB "${OPENEYE_LIB_DIR}/libzstd*.dylib" "${OPENEYE_LIB_DIR}/libzstd*.so")
@@ -147,28 +197,31 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ${_SAVED_CMAKE_FIND_LIBRARY_SUFFIXES})
 
 # Find system zlib. On Windows zlib isn't a system library, so fall back to
 # FetchContent so downstream projects don't need to provide it themselves.
-find_package(ZLIB QUIET)
-if(NOT ZLIB_FOUND)
-    if(WIN32)
-        message(STATUS "OpenEye: ZLIB not found; fetching zlib v1.3.1 for Windows build")
-        include(FetchContent)
-        set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
-        FetchContent_Declare(
-            zlib
-            GIT_REPOSITORY https://github.com/madler/zlib.git
-            GIT_TAG v1.3.1
-            GIT_SHALLOW TRUE
-        )
-        FetchContent_MakeAvailable(zlib)
-        set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR};${zlib_BINARY_DIR}" CACHE PATH "" FORCE)
-        set(ZLIB_LIBRARY zlibstatic CACHE STRING "" FORCE)
-        set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
-        if(NOT TARGET ZLIB::ZLIB)
-            add_library(ZLIB::ZLIB ALIAS zlibstatic)
+# Skip ZLIB in script mode (for tests) since find_package cannot create targets.
+if(NOT CMAKE_SCRIPT_MODE_FILE)
+    find_package(ZLIB QUIET)
+    if(NOT ZLIB_FOUND)
+        if(WIN32)
+            message(STATUS "OpenEye: ZLIB not found; fetching zlib v1.3.1 for Windows build")
+            include(FetchContent)
+            set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+            set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
+            FetchContent_Declare(
+                zlib
+                GIT_REPOSITORY https://github.com/madler/zlib.git
+                GIT_TAG v1.3.1
+                GIT_SHALLOW TRUE
+            )
+            FetchContent_MakeAvailable(zlib)
+            set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR};${zlib_BINARY_DIR}" CACHE PATH "" FORCE)
+            set(ZLIB_LIBRARY zlibstatic CACHE STRING "" FORCE)
+            set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
+            if(NOT TARGET ZLIB::ZLIB)
+                add_library(ZLIB::ZLIB ALIAS zlibstatic)
+            endif()
+        else()
+            find_package(ZLIB REQUIRED)
         endif()
-    else()
-        find_package(ZLIB REQUIRED)
     endif()
 endif()
 
@@ -213,13 +266,49 @@ if(OpenEye_FOUND)
     endif()
 endif()
 
-if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem)
-    # Create imported target for zstd if found
+# Detect the OpenEye SDK major year (e.g., 2024, 2025). The dep graph changes
+# across SDK majors (notably OESpruce in 2025.2+), so downstream logic may
+# condition on OpenEye_SDK_MAJOR.
+set(OpenEye_SDK_MAJOR "")
+if(OPENEYE_INCLUDE_DIR AND EXISTS "${OPENEYE_INCLUDE_DIR}/openeye.h")
+    file(STRINGS "${OPENEYE_INCLUDE_DIR}/openeye.h" _OE_RELEASE_LINE
+        REGEX "OEToolkitsRelease[ \t]+\"[0-9]+\\.[0-9]+")
+    if(_OE_RELEASE_LINE)
+        string(REGEX MATCH "\"([0-9]+)\\." _MATCH "${_OE_RELEASE_LINE}")
+        set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
+    endif()
+endif()
+# Fallback: extract year from install path (e.g., .../toolkits/2025.2.1/...)
+if(NOT OpenEye_SDK_MAJOR AND OPENEYE_INCLUDE_DIR)
+    string(REGEX MATCH "/(20[0-9][0-9])\\.[0-9]+" _MATCH "${OPENEYE_INCLUDE_DIR}")
+    if(CMAKE_MATCH_1)
+        set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
+    endif()
+endif()
+if(NOT OpenEye_SDK_MAJOR)
+    set(OpenEye_SDK_MAJOR "2025")
+    message(WARNING "OpenEye: Could not detect SDK major year, defaulting to ${OpenEye_SDK_MAJOR}")
+else()
+    message(STATUS "OpenEye: Detected SDK major year ${OpenEye_SDK_MAJOR}")
+endif()
+
+if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
+    # Create imported target for zstd if found. The bundled static zstd uses
+    # pthread_create/join internally (see libzstd pool.c), so pre-glibc-2.34
+    # systems (RHEL 8, Ubuntu 20.04) need an explicit -lpthread on the link
+    # line. Pull in Threads::Threads so consumers of OpenEye::zstd do not need
+    # to know about this.
     if(OEZSTD_LIBRARY AND NOT TARGET OpenEye::zstd)
+        find_package(Threads)
         add_library(OpenEye::zstd UNKNOWN IMPORTED)
         set_target_properties(OpenEye::zstd PROPERTIES
             IMPORTED_LOCATION "${OEZSTD_LIBRARY}"
         )
+        if(TARGET Threads::Threads)
+            set_property(TARGET OpenEye::zstd APPEND PROPERTY
+                INTERFACE_LINK_LIBRARIES Threads::Threads
+            )
+        endif()
     endif()
 
     # OEPlatform depends on zlib and zstd
@@ -338,6 +427,204 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem)
         set(OpenEye_Bio_FOUND TRUE)
     endif()
 
+    # v1.1.0: Geometry and optimization targets
+    if(OEOPT_LIBRARY)
+        add_library(OpenEye::OEOpt UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEOpt PROPERTIES
+            IMPORTED_LOCATION "${OEOPT_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OESystem"
+        )
+        set(OpenEye_Opt_FOUND TRUE)
+    endif()
+
+    if(OEMOLPOTENTIAL_LIBRARY)
+        add_library(OpenEye::OEMolPotential UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEMolPotential PROPERTIES
+            IMPORTED_LOCATION "${OEMOLPOTENTIAL_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEOpt"
+        )
+        set(OpenEye_MolPotential_FOUND TRUE)
+    endif()
+
+    if(OEHERMITE_LIBRARY)
+        add_library(OpenEye::OEHermite UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEHermite PROPERTIES
+            IMPORTED_LOCATION "${OEHERMITE_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEOpt"
+        )
+        set(OpenEye_Hermite_FOUND TRUE)
+    endif()
+
+    # OEShape's umbrella header includes oebio.h (via sitehopperdatabase_base.h),
+    # which instantiates OEFieldType<OEBio::OEDesignUnit>. Users of OEShape must
+    # therefore link OEBio for the vtable symbol, so OEBio is a hard dep here.
+    if(OESHAPE_LIBRARY AND OEBIO_LIBRARY)
+        add_library(OpenEye::OEShape UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEShape PROPERTIES
+            IMPORTED_LOCATION "${OESHAPE_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEBio;OpenEye::OEGrid;OpenEye::OEOpt;OpenEye::OEMolPotential;OpenEye::OEHermite"
+        )
+        set(OpenEye_Shape_FOUND TRUE)
+    endif()
+
+    if(OEZAP_LIBRARY)
+        add_library(OpenEye::OEZap UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEZap PROPERTIES
+            IMPORTED_LOCATION "${OEZAP_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEGrid"
+        )
+        set(OpenEye_Zap_FOUND TRUE)
+    endif()
+
+    # OESpicoli references OEBio symbols (OEGetResidues, OEIsNTerminalAtom, OEIsWater)
+    # in its archive, so OEBio is a hard runtime dep — guard on it here.
+    if(OESPICOLI_LIBRARY AND OEBIO_LIBRARY)
+        add_library(OpenEye::OESpicoli UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESpicoli PROPERTIES
+            IMPORTED_LOCATION "${OESPICOLI_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEZap;OpenEye::OEBio"
+        )
+        set(OpenEye_Spicoli_FOUND TRUE)
+    endif()
+
+    if(OESITEHOPPER_LIBRARY)
+        add_library(OpenEye::OESiteHopper UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESiteHopper PROPERTIES
+            IMPORTED_LOCATION "${OESITEHOPPER_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEShape;OpenEye::OESpicoli;${CMAKE_DL_LIBS}"
+        )
+        set(OpenEye_SiteHopper_FOUND TRUE)
+    endif()
+
+    # v1.1.0: Force-field / conformer / protonation targets
+    # liboemmff.a references 175 undefined OEMolPotential::* symbols
+    # (e.g. OEForceField::OEForceField(), OEGenericFF2::AddMolFunc), so
+    # OEMolPotential is a hard runtime dep and appears in INTERFACE_LINK_LIBRARIES.
+    # Not guarded here because OEMolPotential is a core lib that should always
+    # be present alongside OEMMFF in any SDK shipping force-field support.
+    if(OEMMFF_LIBRARY)
+        add_library(OpenEye::OEMMFF UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEMMFF PROPERTIES
+            IMPORTED_LOCATION "${OEMMFF_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMolPotential"
+        )
+        set(OpenEye_MMFF_FOUND TRUE)
+    endif()
+
+    if(OEFF_LIBRARY)
+        add_library(OpenEye::OEFF UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEFF PROPERTIES
+            IMPORTED_LOCATION "${OEFF_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem"
+        )
+        set(OpenEye_FF_FOUND TRUE)
+    endif()
+
+    # liboeszybki.a references 11 undefined OEBio symbols
+    # (e.g. OEBio::OEDesignUnitImpl::SetComponentsFromData, OEBio::OEAtomMatchResidue)
+    # in its archive, so OEBio is a hard runtime dep — guard on it here.
+    if(OESZYBKI_LIBRARY AND OEBIO_LIBRARY)
+        add_library(OpenEye::OESzybki UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESzybki PROPERTIES
+            IMPORTED_LOCATION "${OESZYBKI_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMMFF;OpenEye::OEFF;OpenEye::OEBio"
+        )
+        set(OpenEye_Szybki_FOUND TRUE)
+    endif()
+
+    if(OEQUACPAC_LIBRARY)
+        add_library(OpenEye::OEQuacpac UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEQuacpac PROPERTIES
+            IMPORTED_LOCATION "${OEQUACPAC_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OESzybki"
+        )
+        set(OpenEye_Quacpac_FOUND TRUE)
+    endif()
+
+    if(OEOMEGA2_LIBRARY)
+        add_library(OpenEye::OEOmega2 UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEOmega2 PROPERTIES
+            IMPORTED_LOCATION "${OEOMEGA2_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMMFF"
+        )
+        set(OpenEye_Omega2_FOUND TRUE)
+    endif()
+
+    # liboesheffield.a references undefined symbols from four separate libs:
+    #   * OEFizzChem provides OEFizzChem::OEDerefGridHandle, OEReleaseGridHandle
+    #   * OEGrid provides OESystem::oe_read_grid_object and
+    #     oe_convert_grid_object_to_grid_structure. Crucially these are NOT
+    #     transitive through OEFizzChem — liboefizzchem.a has zero OESystem::oe_*
+    #     grid undefs, so OEGrid must be a direct dep. Do not drop it.
+    #   * OEZap provides OEPB::oe_make_zap, oe_make_area
+    #   * OEMolPotential provides 25 undefined OEMolPotential::* refs
+    #     (e.g. OEMolPotential::OEMolFunc::SetVerbose)
+    # All four are hard runtime deps; OEFizzChem/OEGrid/OEZap are guarded above
+    # and OEMolPotential is included in INTERFACE_LINK_LIBRARIES.
+    if(OESHEFFIELD_LIBRARY AND OEFIZZCHEM_LIBRARY AND OEGRID_LIBRARY AND OEZAP_LIBRARY)
+        add_library(OpenEye::OESheffield UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESheffield PROPERTIES
+            IMPORTED_LOCATION "${OESHEFFIELD_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMolPotential;OpenEye::OEFizzChem;OpenEye::OEGrid;OpenEye::OEZap"
+        )
+        set(OpenEye_Sheffield_FOUND TRUE)
+    endif()
+
+    # OESpruce's transitive deps expanded in SDK 2025.2. Older SDKs only need
+    # OEChem + OEBio + OESiteHopper; 2025.2+ also pulls OEQuacpac, OEMMFF,
+    # OEOmega2, OESheffield via builder/designunit code paths.
+    if(OESPRUCE_LIBRARY)
+        add_library(OpenEye::OESpruce UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESpruce PROPERTIES
+            IMPORTED_LOCATION "${OESPRUCE_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+        )
+        if(OpenEye_SDK_MAJOR GREATER_EQUAL 2025)
+            set_property(TARGET OpenEye::OESpruce PROPERTY INTERFACE_LINK_LIBRARIES
+                "OpenEye::OEChem;OpenEye::OEBio;OpenEye::OESiteHopper;OpenEye::OEQuacpac;OpenEye::OEMMFF;OpenEye::OEOmega2;OpenEye::OESheffield"
+            )
+        else()
+            set_property(TARGET OpenEye::OESpruce PROPERTY INTERFACE_LINK_LIBRARIES
+                "OpenEye::OEChem;OpenEye::OEBio;OpenEye::OESiteHopper"
+            )
+        endif()
+        set(OpenEye_Spruce_FOUND TRUE)
+    endif()
+
+    # v1.1.0: Depiction / nomenclature targets
+    if(OEDEPICT_LIBRARY)
+        add_library(OpenEye::OEDepict UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEDepict PROPERTIES
+            IMPORTED_LOCATION "${OEDEPICT_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem"
+        )
+        set(OpenEye_Depict_FOUND TRUE)
+    endif()
+
+    if(OEIUPAC_LIBRARY)
+        add_library(OpenEye::OEIUPAC UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEIUPAC PROPERTIES
+            IMPORTED_LOCATION "${OEIUPAC_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem"
+        )
+        set(OpenEye_IUPAC_FOUND TRUE)
+    endif()
+
     # Export the library type for use in other CMake files
     set(OpenEye_LIBRARY_TYPE ${OPENEYE_LIBRARY_TYPE} CACHE STRING "OpenEye library type (SHARED or STATIC)")
 endif()
@@ -354,4 +641,20 @@ mark_as_advanced(
     OEFIZZCHEM_LIBRARY
     OEMATH_LIBRARY
     OEZSTD_LIBRARY
+    OEOPT_LIBRARY
+    OEMOLPOTENTIAL_LIBRARY
+    OEHERMITE_LIBRARY
+    OESHAPE_LIBRARY
+    OEZAP_LIBRARY
+    OESPICOLI_LIBRARY
+    OESITEHOPPER_LIBRARY
+    OEMMFF_LIBRARY
+    OEFF_LIBRARY
+    OESZYBKI_LIBRARY
+    OEQUACPAC_LIBRARY
+    OEOMEGA2_LIBRARY
+    OESHEFFIELD_LIBRARY
+    OESPRUCE_LIBRARY
+    OEDEPICT_LIBRARY
+    OEIUPAC_LIBRARY
 )

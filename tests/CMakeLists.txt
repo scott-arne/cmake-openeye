@@ -173,6 +173,51 @@ endif()
 add_test(NAME link_all_libraries COMMAND test_all_libraries)
 
 # ---------------------------------------------------------------------------
+# v1.1.0: Geometry and optimization targets
+# ---------------------------------------------------------------------------
+if(TARGET OpenEye::OEOpt)
+    add_executable(test_oeopt test_oeopt.cpp)
+    target_link_libraries(test_oeopt PRIVATE OpenEye::OEOpt)
+    add_test(NAME link_oeopt COMMAND test_oeopt)
+endif()
+
+if(TARGET OpenEye::OEMolPotential)
+    add_executable(test_oemolpotential test_oemolpotential.cpp)
+    target_link_libraries(test_oemolpotential PRIVATE OpenEye::OEMolPotential)
+    add_test(NAME link_oemolpotential COMMAND test_oemolpotential)
+endif()
+
+if(TARGET OpenEye::OEHermite)
+    add_executable(test_oehermite test_oehermite.cpp)
+    target_link_libraries(test_oehermite PRIVATE OpenEye::OEHermite)
+    add_test(NAME link_oehermite COMMAND test_oehermite)
+endif()
+
+if(TARGET OpenEye::OEShape)
+    add_executable(test_oeshape test_oeshape.cpp)
+    target_link_libraries(test_oeshape PRIVATE OpenEye::OEShape)
+    add_test(NAME link_oeshape COMMAND test_oeshape)
+endif()
+
+# ---------------------------------------------------------------------------
+# CMake target-graph assertion test (script-mode)
+# Exhaustively verifies that every expected OpenEye:: imported target exists
+# with the correct INTERFACE_LINK_LIBRARIES. A typo in FindOpenEye.cmake's
+# dep graph will fail this test without requiring a compiler.
+# ---------------------------------------------------------------------------
+add_test(
+    NAME cmake_target_assertions
+    COMMAND ${CMAKE_COMMAND}
+        -DOPENEYE_ROOT=${OPENEYE_ROOT}
+        -DOPENEYE_LIB_DIR=${OPENEYE_LIB_DIR}
+        -DDRIVER_DIR=${CMAKE_CURRENT_BINARY_DIR}/target_assertions_driver
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_target_assertions.cmake
+)
+set_tests_properties(cmake_target_assertions PROPERTIES
+    PASS_REGULAR_EXPRESSION "PASS: all target assertions satisfied"
+)
+
+# ---------------------------------------------------------------------------
 # FindOpenEyePython script-mode test
 # Runs in a subprocess so it does not affect the current build.
 # The test is expected to either succeed (if openeye-toolkits is installed)
@@ -188,3 +233,60 @@ add_test(
 set_tests_properties(find_openeye_python PROPERTIES
     PASS_REGULAR_EXPRESSION "(PASS|SKIP)"
 )
+
+# ---------------------------------------------------------------------------
+# SDK major year detection test (script-mode, like find_openeye_python)
+# ---------------------------------------------------------------------------
+add_test(
+    NAME test_sdk_major
+    COMMAND ${CMAKE_COMMAND}
+        -DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/..
+        -DOPENEYE_ROOT=${OPENEYE_ROOT}
+        -DOPENEYE_LIB_DIR=${OPENEYE_LIB_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_sdk_major.cmake
+)
+set_tests_properties(test_sdk_major PROPERTIES
+    PASS_REGULAR_EXPRESSION "PASS: OpenEye_SDK_MAJOR=20[0-9][0-9]"
+)
+
+if(TARGET OpenEye::OEZap)
+    add_executable(test_oezap test_oezap.cpp)
+    target_link_libraries(test_oezap PRIVATE OpenEye::OEZap)
+    add_test(NAME link_oezap COMMAND test_oezap)
+endif()
+
+if(TARGET OpenEye::OESpicoli)
+    add_executable(test_oespicoli test_oespicoli.cpp)
+    target_link_libraries(test_oespicoli PRIVATE OpenEye::OESpicoli)
+    add_test(NAME link_oespicoli COMMAND test_oespicoli)
+endif()
+
+if(TARGET OpenEye::OESiteHopper)
+    add_executable(test_oesitehopper test_oesitehopper.cpp)
+    target_link_libraries(test_oesitehopper PRIVATE OpenEye::OESiteHopper)
+    add_test(NAME link_oesitehopper COMMAND test_oesitehopper)
+endif()
+
+foreach(_lib IN ITEMS OEMMFF OEFF OESzybki OEQuacpac OEOmega2 OESheffield)
+    string(TOLOWER ${_lib} _lower)
+    if(TARGET OpenEye::${_lib})
+        add_executable(test_${_lower} test_${_lower}.cpp)
+        target_link_libraries(test_${_lower} PRIVATE OpenEye::${_lib})
+        add_test(NAME link_${_lower} COMMAND test_${_lower})
+    endif()
+endforeach()
+
+if(TARGET OpenEye::OESpruce)
+    add_executable(test_oespruce test_oespruce.cpp)
+    target_link_libraries(test_oespruce PRIVATE OpenEye::OESpruce)
+    add_test(NAME link_oespruce COMMAND test_oespruce)
+endif()
+
+foreach(_lib IN ITEMS OEDepict OEIUPAC)
+    string(TOLOWER ${_lib} _lower)
+    if(TARGET OpenEye::${_lib})
+        add_executable(test_${_lower} test_${_lower}.cpp)
+        target_link_libraries(test_${_lower} PRIVATE OpenEye::${_lib})
+        add_test(NAME link_${_lower} COMMAND test_${_lower})
+    endif()
+endforeach()
