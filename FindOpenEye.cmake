@@ -35,6 +35,7 @@
 #   OpenEye::OEQuacpac      - OEQuacpac library (if available)
 #   OpenEye::OEOmega2       - OEOmega2 library (if available)
 #   OpenEye::OESheffield    - OESheffield library (if available)
+#   OpenEye::OESpruce       - OESpruce library (if available)
 #
 # The following variables are set:
 #   OpenEye_FOUND              - TRUE if OpenEye was found
@@ -57,6 +58,7 @@
 #   OpenEye_Quacpac_FOUND      - TRUE if OEQuacpac was found
 #   OpenEye_Omega2_FOUND       - TRUE if OEOmega2 was found
 #   OpenEye_Sheffield_FOUND    - TRUE if OESheffield was found
+#   OpenEye_Spruce_FOUND       - TRUE if OESpruce was found
 
 option(OPENEYE_USE_SHARED "Prefer shared OpenEye libraries for dynamic linking" OFF)
 set(OPENEYE_LIB_DIR "" CACHE PATH "Override OpenEye library directory (e.g., from openeye-toolkits Python package)")
@@ -160,6 +162,7 @@ find_openeye_library(OESZYBKI_LIBRARY oeszybki)
 find_openeye_library(OEQUACPAC_LIBRARY oequacpac)
 find_openeye_library(OEOMEGA2_LIBRARY oeomega2)
 find_openeye_library(OESHEFFIELD_LIBRARY oesheffield)
+find_openeye_library(OESPRUCE_LIBRARY oespruce)
 
 # Find bundled zstd library (OpenEye bundles this) - uses different naming
 if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
@@ -255,6 +258,32 @@ if(OpenEye_FOUND)
             message(STATUS "OpenEye: Toolkit version ${OpenEye_VERSION} (from path)")
         endif()
     endif()
+endif()
+
+# Detect the OpenEye SDK major year (e.g., 2024, 2025). The dep graph changes
+# across SDK majors (notably OESpruce in 2025.2+), so downstream logic may
+# condition on OpenEye_SDK_MAJOR.
+set(OpenEye_SDK_MAJOR "")
+if(OPENEYE_INCLUDE_DIR AND EXISTS "${OPENEYE_INCLUDE_DIR}/openeye.h")
+    file(STRINGS "${OPENEYE_INCLUDE_DIR}/openeye.h" _OE_RELEASE_LINE
+        REGEX "OEToolkitsRelease[ \t]+\"[0-9]+\\.[0-9]+")
+    if(_OE_RELEASE_LINE)
+        string(REGEX MATCH "\"([0-9]+)\\." _MATCH "${_OE_RELEASE_LINE}")
+        set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
+    endif()
+endif()
+# Fallback: extract year from install path (e.g., .../toolkits/2025.2.1/...)
+if(NOT OpenEye_SDK_MAJOR AND OPENEYE_INCLUDE_DIR)
+    string(REGEX MATCH "/(20[0-9][0-9])\\.[0-9]+" _MATCH "${OPENEYE_INCLUDE_DIR}")
+    if(CMAKE_MATCH_1)
+        set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
+    endif()
+endif()
+if(NOT OpenEye_SDK_MAJOR)
+    set(OpenEye_SDK_MAJOR "2025")
+    message(WARNING "OpenEye: Could not detect SDK major year, defaulting to ${OpenEye_SDK_MAJOR}")
+else()
+    message(STATUS "OpenEye: Detected SDK major year ${OpenEye_SDK_MAJOR}")
 endif()
 
 if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
@@ -538,34 +567,29 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         set(OpenEye_Sheffield_FOUND TRUE)
     endif()
 
+    # OESpruce's transitive deps expanded in SDK 2025.2. Older SDKs only need
+    # OEChem + OEBio + OESiteHopper; 2025.2+ also pulls OEQuacpac, OEMMFF,
+    # OEOmega2, OESheffield via builder/designunit code paths.
+    if(OESPRUCE_LIBRARY)
+        add_library(OpenEye::OESpruce UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESpruce PROPERTIES
+            IMPORTED_LOCATION "${OESPRUCE_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+        )
+        if(OpenEye_SDK_MAJOR GREATER_EQUAL 2025)
+            set_property(TARGET OpenEye::OESpruce PROPERTY INTERFACE_LINK_LIBRARIES
+                "OpenEye::OEChem;OpenEye::OEBio;OpenEye::OESiteHopper;OpenEye::OEQuacpac;OpenEye::OEMMFF;OpenEye::OEOmega2;OpenEye::OESheffield"
+            )
+        else()
+            set_property(TARGET OpenEye::OESpruce PROPERTY INTERFACE_LINK_LIBRARIES
+                "OpenEye::OEChem;OpenEye::OEBio;OpenEye::OESiteHopper"
+            )
+        endif()
+        set(OpenEye_Spruce_FOUND TRUE)
+    endif()
+
     # Export the library type for use in other CMake files
     set(OpenEye_LIBRARY_TYPE ${OPENEYE_LIBRARY_TYPE} CACHE STRING "OpenEye library type (SHARED or STATIC)")
-endif()
-
-# Detect the OpenEye SDK major year (e.g., 2024, 2025). The dep graph changes
-# across SDK majors (notably OESpruce in 2025.2+), so downstream logic may
-# condition on OpenEye_SDK_MAJOR.
-set(OpenEye_SDK_MAJOR "")
-if(OPENEYE_INCLUDE_DIR AND EXISTS "${OPENEYE_INCLUDE_DIR}/openeye.h")
-    file(STRINGS "${OPENEYE_INCLUDE_DIR}/openeye.h" _OE_RELEASE_LINE
-        REGEX "OEToolkitsRelease[ \t]+\"[0-9]+\\.[0-9]+")
-    if(_OE_RELEASE_LINE)
-        string(REGEX MATCH "\"([0-9]+)\\." _MATCH "${_OE_RELEASE_LINE}")
-        set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
-    endif()
-endif()
-# Fallback: extract year from install path (e.g., .../toolkits/2025.2.1/...)
-if(NOT OpenEye_SDK_MAJOR AND OPENEYE_INCLUDE_DIR)
-    string(REGEX MATCH "/(20[0-9][0-9])\\.[0-9]+" _MATCH "${OPENEYE_INCLUDE_DIR}")
-    if(CMAKE_MATCH_1)
-        set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
-    endif()
-endif()
-if(NOT OpenEye_SDK_MAJOR)
-    set(OpenEye_SDK_MAJOR "2025")
-    message(WARNING "OpenEye: Could not detect SDK major year, defaulting to ${OpenEye_SDK_MAJOR}")
-else()
-    message(STATUS "OpenEye: Detected SDK major year ${OpenEye_SDK_MAJOR}")
 endif()
 
 mark_as_advanced(
@@ -593,4 +617,5 @@ mark_as_advanced(
     OEQUACPAC_LIBRARY
     OEOMEGA2_LIBRARY
     OESHEFFIELD_LIBRARY
+    OESPRUCE_LIBRARY
 )
