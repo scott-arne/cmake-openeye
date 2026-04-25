@@ -36,6 +36,8 @@
 #   OpenEye::OEOmega2       - OEOmega2 library (if available)
 #   OpenEye::OESheffield    - OESheffield library (if available)
 #   OpenEye::OESpruce       - OESpruce library (if available)
+#   OpenEye::OEDepict       - OEDepict library (if available)
+#   OpenEye::OEIUPAC        - OEIUPAC library (if available)
 #
 # The following variables are set:
 #   OpenEye_FOUND              - TRUE if OpenEye was found
@@ -59,6 +61,8 @@
 #   OpenEye_Omega2_FOUND       - TRUE if OEOmega2 was found
 #   OpenEye_Sheffield_FOUND    - TRUE if OESheffield was found
 #   OpenEye_Spruce_FOUND       - TRUE if OESpruce was found
+#   OpenEye_Depict_FOUND       - TRUE if OEDepict was found
+#   OpenEye_IUPAC_FOUND        - TRUE if OEIUPAC was found
 
 option(OPENEYE_USE_SHARED "Prefer shared OpenEye libraries for dynamic linking" OFF)
 set(OPENEYE_LIB_DIR "" CACHE PATH "Override OpenEye library directory (e.g., from openeye-toolkits Python package)")
@@ -163,6 +167,8 @@ find_openeye_library(OEQUACPAC_LIBRARY oequacpac)
 find_openeye_library(OEOMEGA2_LIBRARY oeomega2)
 find_openeye_library(OESHEFFIELD_LIBRARY oesheffield)
 find_openeye_library(OESPRUCE_LIBRARY oespruce)
+find_openeye_library(OEDEPICT_LIBRARY oedepict)
+find_openeye_library(OEIUPAC_LIBRARY oeiupac)
 
 # Find bundled zstd library (OpenEye bundles this) - uses different naming
 if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
@@ -588,6 +594,27 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         set(OpenEye_Spruce_FOUND TRUE)
     endif()
 
+    # v1.1.0: Depiction / nomenclature targets
+    if(OEDEPICT_LIBRARY)
+        add_library(OpenEye::OEDepict UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEDepict PROPERTIES
+            IMPORTED_LOCATION "${OEDEPICT_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem"
+        )
+        set(OpenEye_Depict_FOUND TRUE)
+    endif()
+
+    if(OEIUPAC_LIBRARY)
+        add_library(OpenEye::OEIUPAC UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEIUPAC PROPERTIES
+            IMPORTED_LOCATION "${OEIUPAC_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem"
+        )
+        set(OpenEye_IUPAC_FOUND TRUE)
+    endif()
+
     # Export the library type for use in other CMake files
     set(OpenEye_LIBRARY_TYPE ${OPENEYE_LIBRARY_TYPE} CACHE STRING "OpenEye library type (SHARED or STATIC)")
 endif()
@@ -618,4 +645,6 @@ mark_as_advanced(
     OEOMEGA2_LIBRARY
     OESHEFFIELD_LIBRARY
     OESPRUCE_LIBRARY
+    OEDEPICT_LIBRARY
+    OEIUPAC_LIBRARY
 )
