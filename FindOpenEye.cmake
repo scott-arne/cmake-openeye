@@ -22,6 +22,13 @@
 #   OpenEye::OEGrid     - OEGrid library (if available)
 #   OpenEye::OEFizzChem - OEFizzChem library (if available)
 #   OpenEye::zstd       - Bundled zstd library (if available)
+#   OpenEye::OEOpt      - OEOpt library (if available)
+#   OpenEye::OEMolPotential - OEMolPotential library (if available)
+#   OpenEye::OEHermite  - OEHermite library (if available)
+#   OpenEye::OEShape    - OEShape library (if available)
+#   OpenEye::OEZap       - OEZap library (if available)
+#   OpenEye::OESpicoli   - OESpicoli library (if available)
+#   OpenEye::OESiteHopper - OESiteHopper library (if available)
 #
 # The following variables are set:
 #   OpenEye_FOUND              - TRUE if OpenEye was found
@@ -35,6 +42,9 @@
 #   OpenEye_MolPotential_FOUND - TRUE if OEMolPotential was found
 #   OpenEye_Hermite_FOUND      - TRUE if OEHermite was found
 #   OpenEye_Shape_FOUND        - TRUE if OEShape was found
+#   OpenEye_Zap_FOUND          - TRUE if OEZap was found
+#   OpenEye_Spicoli_FOUND      - TRUE if OESpicoli was found
+#   OpenEye_SiteHopper_FOUND   - TRUE if OESiteHopper was found
 
 option(OPENEYE_USE_SHARED "Prefer shared OpenEye libraries for dynamic linking" OFF)
 set(OPENEYE_LIB_DIR "" CACHE PATH "Override OpenEye library directory (e.g., from openeye-toolkits Python package)")
@@ -129,6 +139,9 @@ find_openeye_library(OEOPT_LIBRARY oeopt)
 find_openeye_library(OEMOLPOTENTIAL_LIBRARY oemolpotential)
 find_openeye_library(OEHERMITE_LIBRARY oehermite)
 find_openeye_library(OESHAPE_LIBRARY oeshape)
+find_openeye_library(OEZAP_LIBRARY oezap)
+find_openeye_library(OESPICOLI_LIBRARY oespicoli)
+find_openeye_library(OESITEHOPPER_LIBRARY oesitehopper)
 
 # Find bundled zstd library (OpenEye bundles this) - uses different naming
 if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
@@ -395,6 +408,38 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         set(OpenEye_Shape_FOUND TRUE)
     endif()
 
+    if(OEZAP_LIBRARY)
+        add_library(OpenEye::OEZap UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEZap PROPERTIES
+            IMPORTED_LOCATION "${OEZAP_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEGrid"
+        )
+        set(OpenEye_Zap_FOUND TRUE)
+    endif()
+
+    # OESpicoli references OEBio symbols (OEGetResidues, OEIsNTerminalAtom, OEIsWater)
+    # in its archive, so OEBio is a hard runtime dep — guard on it here.
+    if(OESPICOLI_LIBRARY AND OEBIO_LIBRARY)
+        add_library(OpenEye::OESpicoli UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESpicoli PROPERTIES
+            IMPORTED_LOCATION "${OESPICOLI_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEZap;OpenEye::OEBio"
+        )
+        set(OpenEye_Spicoli_FOUND TRUE)
+    endif()
+
+    if(OESITEHOPPER_LIBRARY)
+        add_library(OpenEye::OESiteHopper UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESiteHopper PROPERTIES
+            IMPORTED_LOCATION "${OESITEHOPPER_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEShape;OpenEye::OESpicoli;${CMAKE_DL_LIBS}"
+        )
+        set(OpenEye_SiteHopper_FOUND TRUE)
+    endif()
+
     # Export the library type for use in other CMake files
     set(OpenEye_LIBRARY_TYPE ${OPENEYE_LIBRARY_TYPE} CACHE STRING "OpenEye library type (SHARED or STATIC)")
 endif()
@@ -441,4 +486,7 @@ mark_as_advanced(
     OEMOLPOTENTIAL_LIBRARY
     OEHERMITE_LIBRARY
     OESHAPE_LIBRARY
+    OEZAP_LIBRARY
+    OESPICOLI_LIBRARY
+    OESITEHOPPER_LIBRARY
 )

@@ -230,3 +230,21 @@ add_test(
 set_tests_properties(test_sdk_major PROPERTIES
     PASS_REGULAR_EXPRESSION "PASS: OpenEye_SDK_MAJOR=20[0-9][0-9]"
 )
+
+if(TARGET OpenEye::OEZap)
+    add_executable(test_oezap test_oezap.cpp)
+    target_link_libraries(test_oezap PRIVATE OpenEye::OEZap)
+    add_test(NAME link_oezap COMMAND test_oezap)
+endif()
+
+if(TARGET OpenEye::OESpicoli)
+    add_executable(test_oespicoli test_oespicoli.cpp)
+    target_link_libraries(test_oespicoli PRIVATE OpenEye::OESpicoli)
+    add_test(NAME link_oespicoli COMMAND test_oespicoli)
+endif()
+
+if(TARGET OpenEye::OESiteHopper)
+    add_executable(test_oesitehopper test_oesitehopper.cpp)
+    target_link_libraries(test_oesitehopper PRIVATE OpenEye::OESiteHopper)
+    add_test(NAME link_oesitehopper COMMAND test_oesitehopper)
+endif()
