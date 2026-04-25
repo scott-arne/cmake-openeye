@@ -193,6 +193,12 @@ if(TARGET OpenEye::OEHermite)
     add_test(NAME link_oehermite COMMAND test_oehermite)
 endif()
 
+if(TARGET OpenEye::OEShape)
+    add_executable(test_oeshape test_oeshape.cpp)
+    target_link_libraries(test_oeshape PRIVATE OpenEye::OEShape)
+    add_test(NAME link_oeshape COMMAND test_oeshape)
+endif()
+
 # ---------------------------------------------------------------------------
 # FindOpenEyePython script-mode test
 # Runs in a subprocess so it does not affect the current build.

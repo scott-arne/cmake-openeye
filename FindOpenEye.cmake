@@ -34,6 +34,7 @@
 #   OpenEye_Opt_FOUND          - TRUE if OEOpt was found
 #   OpenEye_MolPotential_FOUND - TRUE if OEMolPotential was found
 #   OpenEye_Hermite_FOUND      - TRUE if OEHermite was found
+#   OpenEye_Shape_FOUND        - TRUE if OEShape was found
 
 option(OPENEYE_USE_SHARED "Prefer shared OpenEye libraries for dynamic linking" OFF)
 set(OPENEYE_LIB_DIR "" CACHE PATH "Override OpenEye library directory (e.g., from openeye-toolkits Python package)")
@@ -127,6 +128,7 @@ find_openeye_library(OEFIZZCHEM_LIBRARY oefizzchem)
 find_openeye_library(OEOPT_LIBRARY oeopt)
 find_openeye_library(OEMOLPOTENTIAL_LIBRARY oemolpotential)
 find_openeye_library(OEHERMITE_LIBRARY oehermite)
+find_openeye_library(OESHAPE_LIBRARY oeshape)
 
 # Find bundled zstd library (OpenEye bundles this) - uses different naming
 if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
@@ -380,6 +382,19 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         set(OpenEye_Hermite_FOUND TRUE)
     endif()
 
+    # OEShape's umbrella header includes oebio.h (via sitehopperdatabase_base.h),
+    # which instantiates OEFieldType<OEBio::OEDesignUnit>. Users of OEShape must
+    # therefore link OEBio for the vtable symbol, so OEBio is a hard dep here.
+    if(OESHAPE_LIBRARY AND OEBIO_LIBRARY)
+        add_library(OpenEye::OEShape UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEShape PROPERTIES
+            IMPORTED_LOCATION "${OESHAPE_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEBio;OpenEye::OEGrid;OpenEye::OEOpt;OpenEye::OEMolPotential;OpenEye::OEHermite"
+        )
+        set(OpenEye_Shape_FOUND TRUE)
+    endif()
+
     # Export the library type for use in other CMake files
     set(OpenEye_LIBRARY_TYPE ${OPENEYE_LIBRARY_TYPE} CACHE STRING "OpenEye library type (SHARED or STATIC)")
 endif()
@@ -425,4 +440,5 @@ mark_as_advanced(
     OEOPT_LIBRARY
     OEMOLPOTENTIAL_LIBRARY
     OEHERMITE_LIBRARY
+    OESHAPE_LIBRARY
 )
