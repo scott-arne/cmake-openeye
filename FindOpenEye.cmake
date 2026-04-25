@@ -22,13 +22,19 @@
 #   OpenEye::OEGrid     - OEGrid library (if available)
 #   OpenEye::OEFizzChem - OEFizzChem library (if available)
 #   OpenEye::zstd       - Bundled zstd library (if available)
-#   OpenEye::OEOpt      - OEOpt library (if available)
+#   OpenEye::OEOpt          - OEOpt library (if available)
 #   OpenEye::OEMolPotential - OEMolPotential library (if available)
-#   OpenEye::OEHermite  - OEHermite library (if available)
-#   OpenEye::OEShape    - OEShape library (if available)
-#   OpenEye::OEZap       - OEZap library (if available)
-#   OpenEye::OESpicoli   - OESpicoli library (if available)
-#   OpenEye::OESiteHopper - OESiteHopper library (if available)
+#   OpenEye::OEHermite      - OEHermite library (if available)
+#   OpenEye::OEShape        - OEShape library (if available)
+#   OpenEye::OEZap          - OEZap library (if available)
+#   OpenEye::OESpicoli      - OESpicoli library (if available)
+#   OpenEye::OESiteHopper   - OESiteHopper library (if available)
+#   OpenEye::OEMMFF         - OEMMFF library (if available)
+#   OpenEye::OEFF           - OEFF library (if available)
+#   OpenEye::OESzybki       - OESzybki library (if available)
+#   OpenEye::OEQuacpac      - OEQuacpac library (if available)
+#   OpenEye::OEOmega2       - OEOmega2 library (if available)
+#   OpenEye::OESheffield    - OESheffield library (if available)
 #
 # The following variables are set:
 #   OpenEye_FOUND              - TRUE if OpenEye was found
@@ -45,6 +51,12 @@
 #   OpenEye_Zap_FOUND          - TRUE if OEZap was found
 #   OpenEye_Spicoli_FOUND      - TRUE if OESpicoli was found
 #   OpenEye_SiteHopper_FOUND   - TRUE if OESiteHopper was found
+#   OpenEye_MMFF_FOUND         - TRUE if OEMMFF was found
+#   OpenEye_FF_FOUND           - TRUE if OEFF was found
+#   OpenEye_Szybki_FOUND       - TRUE if OESzybki was found
+#   OpenEye_Quacpac_FOUND      - TRUE if OEQuacpac was found
+#   OpenEye_Omega2_FOUND       - TRUE if OEOmega2 was found
+#   OpenEye_Sheffield_FOUND    - TRUE if OESheffield was found
 
 option(OPENEYE_USE_SHARED "Prefer shared OpenEye libraries for dynamic linking" OFF)
 set(OPENEYE_LIB_DIR "" CACHE PATH "Override OpenEye library directory (e.g., from openeye-toolkits Python package)")
@@ -142,6 +154,12 @@ find_openeye_library(OESHAPE_LIBRARY oeshape)
 find_openeye_library(OEZAP_LIBRARY oezap)
 find_openeye_library(OESPICOLI_LIBRARY oespicoli)
 find_openeye_library(OESITEHOPPER_LIBRARY oesitehopper)
+find_openeye_library(OEMMFF_LIBRARY oemmff)
+find_openeye_library(OEFF_LIBRARY oeff)
+find_openeye_library(OESZYBKI_LIBRARY oeszybki)
+find_openeye_library(OEQUACPAC_LIBRARY oequacpac)
+find_openeye_library(OEOMEGA2_LIBRARY oeomega2)
+find_openeye_library(OESHEFFIELD_LIBRARY oesheffield)
 
 # Find bundled zstd library (OpenEye bundles this) - uses different naming
 if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
@@ -440,6 +458,86 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         set(OpenEye_SiteHopper_FOUND TRUE)
     endif()
 
+    # v1.1.0: Force-field / conformer / protonation targets
+    # liboemmff.a references 175 undefined OEMolPotential::* symbols
+    # (e.g. OEForceField::OEForceField(), OEGenericFF2::AddMolFunc), so
+    # OEMolPotential is a hard runtime dep and appears in INTERFACE_LINK_LIBRARIES.
+    # Not guarded here because OEMolPotential is a core lib that should always
+    # be present alongside OEMMFF in any SDK shipping force-field support.
+    if(OEMMFF_LIBRARY)
+        add_library(OpenEye::OEMMFF UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEMMFF PROPERTIES
+            IMPORTED_LOCATION "${OEMMFF_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMolPotential"
+        )
+        set(OpenEye_MMFF_FOUND TRUE)
+    endif()
+
+    if(OEFF_LIBRARY)
+        add_library(OpenEye::OEFF UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEFF PROPERTIES
+            IMPORTED_LOCATION "${OEFF_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem"
+        )
+        set(OpenEye_FF_FOUND TRUE)
+    endif()
+
+    # liboeszybki.a references 11 undefined OEBio symbols
+    # (e.g. OEBio::OEDesignUnitImpl::SetComponentsFromData, OEBio::OEAtomMatchResidue)
+    # in its archive, so OEBio is a hard runtime dep — guard on it here.
+    if(OESZYBKI_LIBRARY AND OEBIO_LIBRARY)
+        add_library(OpenEye::OESzybki UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESzybki PROPERTIES
+            IMPORTED_LOCATION "${OESZYBKI_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMMFF;OpenEye::OEFF;OpenEye::OEBio"
+        )
+        set(OpenEye_Szybki_FOUND TRUE)
+    endif()
+
+    if(OEQUACPAC_LIBRARY)
+        add_library(OpenEye::OEQuacpac UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEQuacpac PROPERTIES
+            IMPORTED_LOCATION "${OEQUACPAC_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OESzybki"
+        )
+        set(OpenEye_Quacpac_FOUND TRUE)
+    endif()
+
+    if(OEOMEGA2_LIBRARY)
+        add_library(OpenEye::OEOmega2 UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEOmega2 PROPERTIES
+            IMPORTED_LOCATION "${OEOMEGA2_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMMFF"
+        )
+        set(OpenEye_Omega2_FOUND TRUE)
+    endif()
+
+    # liboesheffield.a references undefined symbols from four separate libs:
+    #   * OEFizzChem provides OEFizzChem::OEDerefGridHandle, OEReleaseGridHandle
+    #   * OEGrid provides OESystem::oe_read_grid_object and
+    #     oe_convert_grid_object_to_grid_structure. Crucially these are NOT
+    #     transitive through OEFizzChem — liboefizzchem.a has zero OESystem::oe_*
+    #     grid undefs, so OEGrid must be a direct dep. Do not drop it.
+    #   * OEZap provides OEPB::oe_make_zap, oe_make_area
+    #   * OEMolPotential provides 25 undefined OEMolPotential::* refs
+    #     (e.g. OEMolPotential::OEMolFunc::SetVerbose)
+    # All four are hard runtime deps; OEFizzChem/OEGrid/OEZap are guarded above
+    # and OEMolPotential is included in INTERFACE_LINK_LIBRARIES.
+    if(OESHEFFIELD_LIBRARY AND OEFIZZCHEM_LIBRARY AND OEGRID_LIBRARY AND OEZAP_LIBRARY)
+        add_library(OpenEye::OESheffield UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESheffield PROPERTIES
+            IMPORTED_LOCATION "${OESHEFFIELD_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMolPotential;OpenEye::OEFizzChem;OpenEye::OEGrid;OpenEye::OEZap"
+        )
+        set(OpenEye_Sheffield_FOUND TRUE)
+    endif()
+
     # Export the library type for use in other CMake files
     set(OpenEye_LIBRARY_TYPE ${OPENEYE_LIBRARY_TYPE} CACHE STRING "OpenEye library type (SHARED or STATIC)")
 endif()
@@ -489,4 +587,10 @@ mark_as_advanced(
     OEZAP_LIBRARY
     OESPICOLI_LIBRARY
     OESITEHOPPER_LIBRARY
+    OEMMFF_LIBRARY
+    OEFF_LIBRARY
+    OESZYBKI_LIBRARY
+    OEQUACPAC_LIBRARY
+    OEOMEGA2_LIBRARY
+    OESHEFFIELD_LIBRARY
 )
