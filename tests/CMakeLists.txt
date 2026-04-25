@@ -173,6 +173,27 @@ endif()
 add_test(NAME link_all_libraries COMMAND test_all_libraries)
 
 # ---------------------------------------------------------------------------
+# v1.1.0: Geometry and optimization targets
+# ---------------------------------------------------------------------------
+if(TARGET OpenEye::OEOpt)
+    add_executable(test_oeopt test_oeopt.cpp)
+    target_link_libraries(test_oeopt PRIVATE OpenEye::OEOpt)
+    add_test(NAME link_oeopt COMMAND test_oeopt)
+endif()
+
+if(TARGET OpenEye::OEMolPotential)
+    add_executable(test_oemolpotential test_oemolpotential.cpp)
+    target_link_libraries(test_oemolpotential PRIVATE OpenEye::OEMolPotential)
+    add_test(NAME link_oemolpotential COMMAND test_oemolpotential)
+endif()
+
+if(TARGET OpenEye::OEHermite)
+    add_executable(test_oehermite test_oehermite.cpp)
+    target_link_libraries(test_oehermite PRIVATE OpenEye::OEHermite)
+    add_test(NAME link_oehermite COMMAND test_oehermite)
+endif()
+
+# ---------------------------------------------------------------------------
 # FindOpenEyePython script-mode test
 # Runs in a subprocess so it does not affect the current build.
 # The test is expected to either succeed (if openeye-toolkits is installed)

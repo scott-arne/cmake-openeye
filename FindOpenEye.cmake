@@ -24,13 +24,16 @@
 #   OpenEye::zstd       - Bundled zstd library (if available)
 #
 # The following variables are set:
-#   OpenEye_FOUND          - TRUE if OpenEye was found
-#   OpenEye_VERSION        - Version string (e.g., "4.3.0.1")
-#   OpenEye_LIBRARY_TYPE   - SHARED or STATIC
-#   OpenEye_GraphSim_FOUND - TRUE if OEGraphSim was found
-#   OpenEye_MedChem_FOUND  - TRUE if OEMedChem was found
-#   OpenEye_Bio_FOUND      - TRUE if OEBio was found
-#   OpenEye_Grid_FOUND     - TRUE if OEGrid was found
+#   OpenEye_FOUND              - TRUE if OpenEye was found
+#   OpenEye_VERSION            - Version string (e.g., "4.3.0.1")
+#   OpenEye_LIBRARY_TYPE       - SHARED or STATIC
+#   OpenEye_GraphSim_FOUND     - TRUE if OEGraphSim was found
+#   OpenEye_MedChem_FOUND      - TRUE if OEMedChem was found
+#   OpenEye_Bio_FOUND          - TRUE if OEBio was found
+#   OpenEye_Grid_FOUND         - TRUE if OEGrid was found
+#   OpenEye_Opt_FOUND          - TRUE if OEOpt was found
+#   OpenEye_MolPotential_FOUND - TRUE if OEMolPotential was found
+#   OpenEye_Hermite_FOUND      - TRUE if OEHermite was found
 
 option(OPENEYE_USE_SHARED "Prefer shared OpenEye libraries for dynamic linking" OFF)
 set(OPENEYE_LIB_DIR "" CACHE PATH "Override OpenEye library directory (e.g., from openeye-toolkits Python package)")
@@ -119,6 +122,11 @@ find_openeye_library(OEMEDCHEM_LIBRARY oemedchem)
 find_openeye_library(OEBIO_LIBRARY oebio)
 find_openeye_library(OEGRID_LIBRARY oegrid)
 find_openeye_library(OEFIZZCHEM_LIBRARY oefizzchem)
+
+# v1.1.0: additional library discovery for geometry/optimization
+find_openeye_library(OEOPT_LIBRARY oeopt)
+find_openeye_library(OEMOLPOTENTIAL_LIBRARY oemolpotential)
+find_openeye_library(OEHERMITE_LIBRARY oehermite)
 
 # Find bundled zstd library (OpenEye bundles this) - uses different naming
 if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
@@ -341,6 +349,37 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         set(OpenEye_Bio_FOUND TRUE)
     endif()
 
+    # v1.1.0: Geometry and optimization targets
+    if(OEOPT_LIBRARY)
+        add_library(OpenEye::OEOpt UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEOpt PROPERTIES
+            IMPORTED_LOCATION "${OEOPT_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OESystem"
+        )
+        set(OpenEye_Opt_FOUND TRUE)
+    endif()
+
+    if(OEMOLPOTENTIAL_LIBRARY)
+        add_library(OpenEye::OEMolPotential UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEMolPotential PROPERTIES
+            IMPORTED_LOCATION "${OEMOLPOTENTIAL_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEOpt"
+        )
+        set(OpenEye_MolPotential_FOUND TRUE)
+    endif()
+
+    if(OEHERMITE_LIBRARY)
+        add_library(OpenEye::OEHermite UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEHermite PROPERTIES
+            IMPORTED_LOCATION "${OEHERMITE_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEOpt"
+        )
+        set(OpenEye_Hermite_FOUND TRUE)
+    endif()
+
     # Export the library type for use in other CMake files
     set(OpenEye_LIBRARY_TYPE ${OPENEYE_LIBRARY_TYPE} CACHE STRING "OpenEye library type (SHARED or STATIC)")
 endif()
@@ -383,4 +422,7 @@ mark_as_advanced(
     OEFIZZCHEM_LIBRARY
     OEMATH_LIBRARY
     OEZSTD_LIBRARY
+    OEOPT_LIBRARY
+    OEMOLPOTENTIAL_LIBRARY
+    OEHERMITE_LIBRARY
 )
