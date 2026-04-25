@@ -33,7 +33,11 @@ file(REMOVE_RECURSE "${_driver_build}")
 # FindOpenEye.cmake as of v1.1.0.
 set(_asserts_cmakelists [[
 cmake_minimum_required(VERSION 3.16)
-project(target_assertions LANGUAGES NONE)
+# LANGUAGES C (not NONE) so FindZLIB and FindThreads in FindOpenEye.cmake can
+# run their compile probes -- on some platforms (e.g. rockylinux:9 aarch64)
+# FindZLIB's ZLIB_LIBRARY probe fails without a working C compiler, which
+# takes down find_package(ZLIB REQUIRED).
+project(target_assertions LANGUAGES C)
 
 list(PREPEND CMAKE_MODULE_PATH "${TEST_ROOT}")
 find_package(OpenEye REQUIRED)
@@ -73,6 +77,11 @@ assert_target_exists(OpenEye::OEPlatform)
 # what we want to catch. On Windows, ws2_32 and netapi32 are appended.
 if(TARGET OpenEye::zstd)
     set(_platform_expected "OpenEye::zstd;ZLIB::ZLIB")
+    # OpenEye::zstd pulls in Threads::Threads on systems where find_package(Threads)
+    # found one, covering pre-glibc-2.34 RHEL 8 / Ubuntu 20.04 linkers.
+    if(TARGET Threads::Threads)
+        assert_interface_link_libraries(OpenEye::zstd "Threads::Threads")
+    endif()
 else()
     set(_platform_expected "ZLIB::ZLIB")
 endif()

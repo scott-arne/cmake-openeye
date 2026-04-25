@@ -293,12 +293,22 @@ else()
 endif()
 
 if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
-    # Create imported target for zstd if found
+    # Create imported target for zstd if found. The bundled static zstd uses
+    # pthread_create/join internally (see libzstd pool.c), so pre-glibc-2.34
+    # systems (RHEL 8, Ubuntu 20.04) need an explicit -lpthread on the link
+    # line. Pull in Threads::Threads so consumers of OpenEye::zstd do not need
+    # to know about this.
     if(OEZSTD_LIBRARY AND NOT TARGET OpenEye::zstd)
+        find_package(Threads)
         add_library(OpenEye::zstd UNKNOWN IMPORTED)
         set_target_properties(OpenEye::zstd PROPERTIES
             IMPORTED_LOCATION "${OEZSTD_LIBRARY}"
         )
+        if(TARGET Threads::Threads)
+            set_property(TARGET OpenEye::zstd APPEND PROPERTY
+                INTERFACE_LINK_LIBRARIES Threads::Threads
+            )
+        endif()
     endif()
 
     # OEPlatform depends on zlib and zstd

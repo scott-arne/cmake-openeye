@@ -61,6 +61,13 @@ jobs:
           tar -xzf /tmp/sdk.tar.gz -C /opt/openeye --strip-components=2
           ls -la /opt/openeye/
 
+      - name: Download OpenEye license
+        run: |
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/oe_license.txt" \
+            -o /opt/openeye/oe_license.txt
+
       - name: Configure tests
         run: |
           cmake -S tests -B tests/build -G Ninja \
@@ -70,6 +77,8 @@ jobs:
         run: cmake --build tests/build
 
       - name: Run tests
+        env:
+          OE_LICENSE: /opt/openeye/oe_license.txt
         run: ctest --test-dir tests/build --output-on-failure
 
   test-macos:
@@ -102,6 +111,13 @@ jobs:
           tar -xzf /tmp/sdk.tar.gz -C ${{ runner.temp }}/openeye --strip-components=2
           ls -la ${{ runner.temp }}/openeye/
 
+      - name: Download OpenEye license
+        run: |
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/oe_license.txt" \
+            -o ${{ runner.temp }}/oe_license.txt
+
       - name: Configure tests
         run: |
           cmake -S tests -B tests/build -G Ninja \
@@ -111,6 +127,8 @@ jobs:
         run: cmake --build tests/build
 
       - name: Run tests
+        env:
+          OE_LICENSE: ${{ runner.temp }}/oe_license.txt
         run: ctest --test-dir tests/build --output-on-failure
 
   test-windows:
@@ -155,13 +173,23 @@ jobs:
           sdk_inner=$(find "${RUNNER_TEMP}/openeye-extract" -maxdepth 1 -mindepth 1 -type d | head -n1)
           echo "OPENEYE_ROOT=${sdk_inner}" >> $GITHUB_ENV
 
+      - name: Download OpenEye license
+        run: |
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/oe_license.txt" \
+            -o "${RUNNER_TEMP}/oe_license.txt"
+
       - name: Configure tests
         run: |
           cmake -S tests -B tests/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
             -DOPENEYE_ROOT="${OPENEYE_ROOT}"
 
       - name: Build tests
         run: cmake --build tests/build
 
       - name: Run tests
+        env:
+          OE_LICENSE: ${{ runner.temp }}/oe_license.txt
         run: ctest --test-dir tests/build --output-on-failure
