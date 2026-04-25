@@ -1,0 +1,169 @@
+name: Test FindOpenEye
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  GCS_BUCKET: openeye-sdks
+  OPENEYE_VERSION: "2025.2.1"
+
+jobs:
+  test-linux:
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            container: rockylinux:8
+            sdk: OpenEye-toolkits-2025.2.1-redhat-RHEL8-g++8.5-x64.tar.gz
+            dnf_repo: powertools
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            container: rockylinux:9
+            sdk: OpenEye-toolkits-2025.2.1-Ubuntu-22.04-g++11.11-aarch64.tar.gz
+            dnf_repo: crb
+
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+
+    steps:
+      - name: Install prerequisites
+        run: |
+          dnf install -y epel-release
+          dnf config-manager --set-enabled ${{ matrix.dnf_repo }}
+          dnf install -y --allowerasing \
+            git curl unzip gcc gcc-c++ cmake ninja-build \
+            zlib-devel
+
+      - uses: actions/checkout@v6
+
+      - name: Authenticate to Google Cloud
+        id: gcp-auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Download OpenEye SDK from GCS
+        run: |
+          mkdir -p /opt/openeye
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/${{ matrix.sdk }}" \
+            -o /tmp/sdk.tar.gz
+          tar -xzf /tmp/sdk.tar.gz -C /opt/openeye --strip-components=2
+          ls -la /opt/openeye/
+
+      - name: Configure tests
+        run: |
+          cmake -S tests -B tests/build -G Ninja \
+            -DOPENEYE_ROOT=/opt/openeye
+
+      - name: Build tests
+        run: cmake --build tests/build
+
+      - name: Run tests
+        run: ctest --test-dir tests/build --output-on-failure
+
+  test-macos:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install CMake + Ninja
+        run: brew install cmake ninja
+
+      - name: Authenticate to Google Cloud
+        id: gcp-auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Download OpenEye SDK from GCS
+        run: |
+          mkdir -p ${{ runner.temp }}/openeye
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/OpenEye-toolkits-2025.2.1-macOS-14.8-clang++16-universal.tar.gz" \
+            -o /tmp/sdk.tar.gz
+          tar -xzf /tmp/sdk.tar.gz -C ${{ runner.temp }}/openeye --strip-components=2
+          ls -la ${{ runner.temp }}/openeye/
+
+      - name: Configure tests
+        run: |
+          cmake -S tests -B tests/build -G Ninja \
+            -DOPENEYE_ROOT=${{ runner.temp }}/openeye
+
+      - name: Build tests
+        run: cmake --build tests/build
+
+      - name: Run tests
+        run: ctest --test-dir tests/build --output-on-failure
+
+  test-windows:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup MSVC dev environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install CMake + Ninja
+        run: choco install ninja cmake -y --no-progress
+        shell: powershell
+
+      - name: Authenticate to Google Cloud
+        id: gcp-auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Download OpenEye SDK from GCS
+        run: |
+          mkdir -p "${RUNNER_TEMP}/openeye-extract"
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/${{ vars.SDK_WINDOWS }}" \
+            -o "${RUNNER_TEMP}/sdk.zip"
+          unzip -q "${RUNNER_TEMP}/sdk.zip" -d "${RUNNER_TEMP}/openeye-extract"
+          sdk_inner=$(find "${RUNNER_TEMP}/openeye-extract" -maxdepth 1 -mindepth 1 -type d | head -n1)
+          echo "OPENEYE_ROOT=${sdk_inner}" >> $GITHUB_ENV
+
+      - name: Configure tests
+        run: |
+          cmake -S tests -B tests/build -G Ninja \
+            -DOPENEYE_ROOT="${OPENEYE_ROOT}"
+
+      - name: Build tests
+        run: cmake --build tests/build
+
+      - name: Run tests
+        run: ctest --test-dir tests/build --output-on-failure
