@@ -98,9 +98,15 @@ endif()
 # Set library search order based on preference (save/restore to not affect other finds)
 set(_SAVED_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
 if(OPENEYE_USE_SHARED)
-    # For shared linking, look for .dylib/.so first
+    # For shared linking, look for platform-native import/shared libs first
     if(APPLE)
         set(CMAKE_FIND_LIBRARY_SUFFIXES .dylib .a)
+    elseif(WIN32)
+        # MSVC only — MinGW/Cygwin/Clang-on-Windows are out of scope for this
+        # project. Windows SDK ships MSVC import libraries (oechem.lib) alongside
+        # DLLs. The openeye-toolkits wheel ships only DLLs — consumers must set
+        # OPENEYE_ROOT to the SDK for link-time discovery.
+        set(CMAKE_FIND_LIBRARY_SUFFIXES .lib)
     else()
         set(CMAKE_FIND_LIBRARY_SUFFIXES .so .a)
     endif()
