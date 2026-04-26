@@ -23,15 +23,29 @@ if(NOT Python3_EXECUTABLE)
         "Call find_package(Python3 COMPONENTS Interpreter) before find_package(OpenEyePython).")
 endif()
 
-# Query the library directory and platform from openeye-toolkits
-execute_process(
-    COMMAND ${Python3_EXECUTABLE} -c
-        "from openeye import libs; import os; d = libs.FindOpenEyeDLLSDirectory(); print(d); print(os.path.basename(d))"
-    OUTPUT_VARIABLE _OE_PYTHON_OUTPUT
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
-    RESULT_VARIABLE _OE_PYTHON_RESULT
-)
+# Query the library directory and platform from openeye-toolkits.
+# On Windows, DLLs live flat in openeye/libs/ with no arch subdirectory,
+# and upstream libs.FindOpenEyeDLLSDirectory() is broken (iterates characters
+# of a string), so probe openeye.libs.__file__ directly on that platform.
+if(WIN32)
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c
+            "import openeye.libs, os; d = os.path.dirname(openeye.libs.__file__); print(d); print(os.path.basename(d))"
+        OUTPUT_VARIABLE _OE_PYTHON_OUTPUT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE _OE_PYTHON_RESULT
+    )
+else()
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c
+            "from openeye import libs; import os; d = libs.FindOpenEyeDLLSDirectory(); print(d); print(os.path.basename(d))"
+        OUTPUT_VARIABLE _OE_PYTHON_OUTPUT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE _OE_PYTHON_RESULT
+    )
+endif()
 
 if(NOT _OE_PYTHON_RESULT EQUAL 0)
     message(STATUS "FindOpenEyePython: openeye-toolkits Python package not found or FindOpenEyeDLLSDirectory() failed")
@@ -74,6 +88,8 @@ endif()
 # Validate that the library directory contains shared libraries
 if(APPLE)
     file(GLOB _OE_SHARED_LIBS "${_OE_LIB_DIR}/*.dylib")
+elseif(WIN32)
+    file(GLOB _OE_SHARED_LIBS "${_OE_LIB_DIR}/*.dll")
 else()
     file(GLOB _OE_SHARED_LIBS "${_OE_LIB_DIR}/*.so")
 endif()
