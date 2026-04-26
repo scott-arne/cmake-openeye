@@ -115,8 +115,10 @@ endif()
 
 # Helper macro to find OpenEye library, handling versioned names (e.g., liboechem-4.3.0.1.dylib)
 macro(find_openeye_library VAR_NAME LIB_NAME)
-    # First try to find versioned shared library in the override directory (openeye-toolkits Python package)
-    if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
+    # First try to find versioned shared library in the override directory
+    # (openeye-toolkits Python package). Windows SDK uses unversioned oechem.lib,
+    # and the Windows wheel has no .lib files — fall through to find_library below.
+    if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED AND NOT WIN32)
         if(APPLE)
             file(GLOB _VERSIONED_LIB "${OPENEYE_LIB_DIR}/lib${LIB_NAME}-*.dylib")
         else()
