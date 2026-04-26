@@ -3,7 +3,8 @@
 #
 # This module queries the installed openeye-toolkits Python package to find
 # the shared library directory and marketing version. It sets variables that
-# FindOpenEye.cmake consumes (OPENEYE_LIB_DIR, OPENEYE_USE_SHARED).
+# FindOpenEye.cmake and OpenEyeSWIG.cmake consume
+# (OPENEYE_RUNTIME_LIB_DIR for RPATH, OpenEyePython_PLATFORM).
 #
 # Requirements:
 #   - Python3_EXECUTABLE must be set (call find_package(Python3) first)
@@ -110,8 +111,15 @@ set(OpenEyePython_LIB_DIR "${_OE_LIB_DIR}" CACHE PATH "OpenEye Python library di
 set(OpenEyePython_VERSION "${_OE_MARKETING_VERSION}")
 set(OpenEyePython_PLATFORM "${_OE_PLATFORM}")
 
-# Set variables for FindOpenEye.cmake consumption
-set(OPENEYE_LIB_DIR "${_OE_LIB_DIR}" CACHE PATH "Override OpenEye library directory (e.g., from openeye-toolkits Python package)" FORCE)
+# Set variables for FindOpenEye.cmake / OpenEyeSWIG.cmake consumption.
+# OPENEYE_RUNTIME_LIB_DIR points at the wheel's openeye/libs/ directory (contains
+# versioned .so/.dylib on POSIX, flat .dll on Windows). It is consumed by
+# OpenEyeSWIG.cmake to compute RPATH on POSIX; Windows resolves DLLs at Python
+# import time via openeye.libs' os.add_dll_directory() side effect.
+# We intentionally do NOT override OPENEYE_LIB_DIR — that points at the C++ SDK
+# lib/ directory for link-time library discovery, and on Windows the wheel has
+# no .lib import libraries so overriding it would break the MSVC linker.
+set(OPENEYE_RUNTIME_LIB_DIR "${_OE_LIB_DIR}" CACHE PATH "Runtime shared-library directory from openeye-toolkits Python package" FORCE)
 set(OPENEYE_TOOLKITS_VERSION "${_OE_MARKETING_VERSION}" CACHE STRING "OpenEye toolkits marketing version from Python package")
 
 include(FindPackageHandleStandardArgs)
