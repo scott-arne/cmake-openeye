@@ -65,7 +65,12 @@
 #   OpenEye_IUPAC_FOUND        - TRUE if OEIUPAC was found
 
 option(OPENEYE_USE_SHARED "Prefer shared OpenEye libraries for dynamic linking" OFF)
-set(OPENEYE_LIB_DIR "" CACHE PATH "Override OpenEye library directory (e.g., from openeye-toolkits Python package)")
+set(OPENEYE_LIB_DIR "" CACHE PATH "Override OpenEye library directory for link-time discovery (e.g., SDK lib/)")
+set(OPENEYE_RUNTIME_LIB_DIR "" CACHE PATH "Runtime shared-library directory (e.g., openeye-toolkits wheel openeye/libs/); used for RPATH on POSIX")
+
+if(OPENEYE_RUNTIME_LIB_DIR)
+    message(STATUS "OpenEye: Runtime library directory: ${OPENEYE_RUNTIME_LIB_DIR}")
+endif()
 
 # Warn when using shared mode without a library directory override
 if(OPENEYE_USE_SHARED AND NOT OPENEYE_LIB_DIR)
