@@ -178,8 +178,10 @@ find_openeye_library(OESPRUCE_LIBRARY oespruce)
 find_openeye_library(OEDEPICT_LIBRARY oedepict)
 find_openeye_library(OEIUPAC_LIBRARY oeiupac)
 
-# Find bundled zstd library (OpenEye bundles this) - uses different naming
-if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
+# Find bundled zstd library (OpenEye bundles this) - uses different naming.
+# Versioned-glob is POSIX-only. On Windows, fall back to find_library below,
+# which resolves zstd_static / zstd against the SDK's lib/ directory.
+if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED AND NOT WIN32)
     file(GLOB _ZSTD_LIB "${OPENEYE_LIB_DIR}/libzstd*.dylib" "${OPENEYE_LIB_DIR}/libzstd*.so")
     if(_ZSTD_LIB)
         list(GET _ZSTD_LIB 0 OEZSTD_LIBRARY)
