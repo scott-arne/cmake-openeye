@@ -196,6 +196,12 @@ function(openeye_add_swig_module)
                 BUILD_WITH_INSTALL_RPATH TRUE
             )
         endif()
+    elseif(WIN32)
+        # Windows has no RPATH. DLL resolution happens at Python import time via
+        # openeye.libs' os.add_dll_directory() side effect — the consumer's
+        # python/<pkg>/__init__.py must `import openeye.libs` before loading the
+        # SWIG .pyd module.
+        message(STATUS "${ARG_NAME}: Windows — no RPATH; DLL resolution via openeye.libs at import time")
     elseif(UNIX)
         if(OpenEye_LIBRARY_TYPE STREQUAL "SHARED")
             set_target_properties(${_TARGET_NAME} PROPERTIES
