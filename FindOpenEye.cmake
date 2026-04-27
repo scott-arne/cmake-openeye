@@ -72,10 +72,18 @@ if(OPENEYE_RUNTIME_LIB_DIR)
     message(STATUS "OpenEye: Runtime library directory: ${OPENEYE_RUNTIME_LIB_DIR}")
 endif()
 
+# Windows ships only static .libs in the SDK, and the openeye-toolkits Python
+# wheel has no MSVC import libraries at all — shared linking is not possible
+# on Windows. Force OPENEYE_USE_SHARED OFF so the rest of this module can
+# assume "shared mode" implies POSIX.
+if(WIN32 AND OPENEYE_USE_SHARED)
+    message(STATUS "OpenEye: OPENEYE_USE_SHARED is not supported on Windows (SDK is static-only); forcing OFF")
+    set(OPENEYE_USE_SHARED OFF CACHE BOOL "" FORCE)
+endif()
+
 # Warn when using shared mode without a library directory override. POSIX uses
-# the wheel's versioned libraries via OPENEYE_LIB_DIR; Windows resolves import
-# libraries (.lib) from OPENEYE_ROOT/lib and does not need OPENEYE_LIB_DIR.
-if(OPENEYE_USE_SHARED AND NOT OPENEYE_LIB_DIR AND NOT WIN32)
+# the wheel's versioned libraries via OPENEYE_LIB_DIR.
+if(OPENEYE_USE_SHARED AND NOT OPENEYE_LIB_DIR)
     message(WARNING "OPENEYE_USE_SHARED is ON but OPENEYE_LIB_DIR is not set. "
         "Shared library discovery may fail without an explicit library directory. "
         "Consider using FindOpenEyePython.cmake to auto-detect the library directory.")
@@ -105,15 +113,9 @@ endif()
 # Set library search order based on preference (save/restore to not affect other finds)
 set(_SAVED_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
 if(OPENEYE_USE_SHARED)
-    # For shared linking, look for platform-native import/shared libs first
+    # POSIX-only (Windows coerced OFF above). Prefer dylib/so over static.
     if(APPLE)
         set(CMAKE_FIND_LIBRARY_SUFFIXES .dylib .a)
-    elseif(WIN32)
-        # MSVC only — MinGW/Cygwin/Clang-on-Windows are out of scope for this
-        # project. Windows SDK ships MSVC import libraries (oechem.lib) alongside
-        # DLLs. The openeye-toolkits wheel ships only DLLs — consumers must set
-        # OPENEYE_ROOT to the SDK for link-time discovery.
-        set(CMAKE_FIND_LIBRARY_SUFFIXES .lib)
     else()
         set(CMAKE_FIND_LIBRARY_SUFFIXES .so .a)
     endif()
@@ -123,9 +125,9 @@ endif()
 # Helper macro to find OpenEye library, handling versioned names (e.g., liboechem-4.3.0.1.dylib)
 macro(find_openeye_library VAR_NAME LIB_NAME)
     # First try to find versioned shared library in the override directory
-    # (openeye-toolkits Python package). Windows SDK uses unversioned oechem.lib,
-    # and the Windows wheel has no .lib files — fall through to find_library below.
-    if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED AND NOT WIN32)
+    # (openeye-toolkits Python package). POSIX-only; OPENEYE_USE_SHARED is
+    # always OFF on Windows.
+    if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
         if(APPLE)
             file(GLOB _VERSIONED_LIB "${OPENEYE_LIB_DIR}/lib${LIB_NAME}-*.dylib")
         else()
@@ -186,17 +188,17 @@ find_openeye_library(OEDEPICT_LIBRARY oedepict)
 find_openeye_library(OEIUPAC_LIBRARY oeiupac)
 
 # Find bundled zstd library (OpenEye bundles this) - uses different naming.
-# Versioned-glob is POSIX-only. Windows+shared skips zstd entirely because the
-# OpenEye DLLs already link zstd statically; exposing zstd_static as a separate
-# target would leak an un-exportable dependency into downstream install(EXPORT).
-if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED AND NOT WIN32)
+# Versioned-glob is POSIX-only (OPENEYE_USE_SHARED is always OFF on Windows).
+# On Windows the SDK ships zstd_static.lib; find_library below picks it up so
+# oeplatform's gzstd_* symbols resolve.
+if(OPENEYE_LIB_DIR AND OPENEYE_USE_SHARED)
     file(GLOB _ZSTD_LIB "${OPENEYE_LIB_DIR}/libzstd*.dylib" "${OPENEYE_LIB_DIR}/libzstd*.so")
     if(_ZSTD_LIB)
         list(GET _ZSTD_LIB 0 OEZSTD_LIBRARY)
         message(STATUS "OpenEye: Found zstd: ${OEZSTD_LIBRARY}")
     endif()
 endif()
-if(NOT OEZSTD_LIBRARY AND NOT (WIN32 AND OPENEYE_USE_SHARED))
+if(NOT OEZSTD_LIBRARY)
     find_library(OEZSTD_LIBRARY
         NAMES zstd_static zstd
         PATHS
@@ -216,11 +218,13 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ${_SAVED_CMAKE_FIND_LIBRARY_SUFFIXES})
 # Find system zlib. On Windows zlib isn't a system library, so fall back to
 # FetchContent so downstream projects don't need to provide it themselves.
 # Skip ZLIB in script mode (for tests) since find_package cannot create targets.
-# When linking the OpenEye DLLs via their MSVC import libraries on Windows,
-# zlib is already statically linked inside each DLL, so consumers of the
-# import library do not need a separate zlib — skip it to avoid polluting
-# downstream install(EXPORT) sets with an un-exportable FetchContent target.
-if(NOT CMAKE_SCRIPT_MODE_FILE AND NOT (WIN32 AND OPENEYE_USE_SHARED))
+#
+# Note: The OpenEye Windows SDK ships z.lib (a static archive of OpenEye's
+# bundled zlib) but no zlib headers. Consumers like oemaestro include
+# <zlib.h> directly, so we still fetch zlib v1.3.1 sources for headers and
+# use the resulting zlibstatic target for linking. This keeps a single
+# zlib copy in the final .pyd — matching what OE's own DLLs statically link.
+if(NOT CMAKE_SCRIPT_MODE_FILE)
     find_package(ZLIB QUIET)
     if(NOT ZLIB_FOUND)
         if(WIN32)
@@ -257,20 +261,14 @@ find_package_handle_standard_args(OpenEye
         OEMATH_LIBRARY
 )
 
-# Determine library type based on file extension
+# Determine library type based on file extension. Windows .lib is always a
+# static archive here (the SDK ships no DLL import libraries and the wheel
+# ships no .lib files at all).
 if(OpenEye_FOUND)
-    # Check if library name contains .dylib or .so (handles versioned names like
-    # liboechem-4.3.0.1.dylib). On Windows, .lib is ambiguous — it can be either
-    # a static archive or a DLL import library. Under OPENEYE_USE_SHARED we are
-    # looking at MSVC import libraries that resolve to DLLs at runtime, so treat
-    # them as SHARED. Without OPENEYE_USE_SHARED, Windows .lib is static.
     get_filename_component(OECHEM_NAME "${OECHEM_LIBRARY}" NAME)
     if(OECHEM_NAME MATCHES "\\.dylib$" OR OECHEM_NAME MATCHES "\\.so$" OR OECHEM_NAME MATCHES "\\.so\\.")
         set(OPENEYE_LIBRARY_TYPE SHARED)
         message(STATUS "OpenEye: Using shared libraries (dynamic linking)")
-    elseif(WIN32 AND OPENEYE_USE_SHARED AND OECHEM_NAME MATCHES "\\.lib$")
-        set(OPENEYE_LIBRARY_TYPE SHARED)
-        message(STATUS "OpenEye: Using shared libraries (MSVC import libraries)")
     else()
         set(OPENEYE_LIBRARY_TYPE STATIC)
         message(STATUS "OpenEye: Using static libraries")
@@ -340,24 +338,23 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         endif()
     endif()
 
-    # OEPlatform depends on zlib and zstd — except on Windows+shared, where
-    # both are already baked into the OpenEye DLLs; adding them to the interface
-    # would make downstream install(EXPORT) choke on non-exportable targets.
+    # OEPlatform depends on zlib and zstd. Even on Windows (where oeplatform.lib
+    # is a static archive with unresolved gzstd_*/zlib externs), we must link
+    # both. The OpenEye Windows SDK ships z.lib and zstd_static.lib precisely
+    # so downstream consumers can satisfy those externs.
     add_library(OpenEye::OEPlatform UNKNOWN IMPORTED)
     set_target_properties(OpenEye::OEPlatform PROPERTIES
         IMPORTED_LOCATION "${OEPLATFORM_LIBRARY}"
         INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
     )
-    if(NOT (WIN32 AND OPENEYE_USE_SHARED))
-        if(OEZSTD_LIBRARY)
-            set_property(TARGET OpenEye::OEPlatform APPEND PROPERTY
-                INTERFACE_LINK_LIBRARIES "OpenEye::zstd;ZLIB::ZLIB"
-            )
-        else()
-            set_property(TARGET OpenEye::OEPlatform APPEND PROPERTY
-                INTERFACE_LINK_LIBRARIES "ZLIB::ZLIB"
-            )
-        endif()
+    if(OEZSTD_LIBRARY)
+        set_property(TARGET OpenEye::OEPlatform APPEND PROPERTY
+            INTERFACE_LINK_LIBRARIES "OpenEye::zstd;ZLIB::ZLIB"
+        )
+    else()
+        set_property(TARGET OpenEye::OEPlatform APPEND PROPERTY
+            INTERFACE_LINK_LIBRARIES "ZLIB::ZLIB"
+        )
     endif()
 
     # OEPlatform's Windows hostinfo uses Winsock and Netbios.
