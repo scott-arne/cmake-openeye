@@ -290,3 +290,23 @@ foreach(_lib IN ITEMS OEDepict OEIUPAC)
         add_test(NAME link_${_lower} COMMAND test_${_lower})
     endif()
 endforeach()
+
+# ---------------------------------------------------------------------------
+# abi3 fixture: builds a trivial SWIG module through openeye_add_swig_module
+# with STABLE_ABI=ON, then on Windows asserts the compiled .pyd links
+# python3.dll and not python3XX.dll. Guards the bug documented in
+# docs/bugs/2026-04-27-windows-stable-abi-wrong-python-dll.md.
+# Requires CMake 3.26+ (SABIModule) and SWIG 4.0+.
+# ---------------------------------------------------------------------------
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.26")
+    find_package(SWIG 4.2 QUIET)
+    if(SWIG_FOUND)
+        add_subdirectory(abi3_fixture)
+    else()
+        message(STATUS "abi3 fixture skipped: SWIG 4.2+ not found "
+                       "(older SWIG generates wrappers that reference "
+                       "Python APIs outside the stable ABI)")
+    endif()
+else()
+    message(STATUS "abi3 fixture skipped: requires CMake 3.26+")
+endif()

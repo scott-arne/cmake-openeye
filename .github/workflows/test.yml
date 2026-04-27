@@ -39,7 +39,7 @@ jobs:
           dnf config-manager --set-enabled ${{ matrix.dnf_repo }}
           dnf install -y --allowerasing \
             git curl unzip gcc gcc-c++ cmake ninja-build \
-            zlib-devel
+            zlib-devel swig python3-devel
 
       - uses: actions/checkout@v6
 
@@ -90,8 +90,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install CMake + Ninja
-        run: brew install cmake ninja
+      - name: Install CMake + Ninja + SWIG
+        run: brew install cmake ninja swig
 
       - name: Authenticate to Google Cloud
         id: gcp-auth
@@ -150,9 +150,14 @@ jobs:
         with:
           arch: x64
 
-      - name: Install CMake + Ninja
-        run: choco install ninja cmake -y --no-progress
+      - name: Install CMake + Ninja + SWIG
+        run: choco install ninja cmake swig -y --no-progress
         shell: powershell
+
+      - name: Setup Python 3.10 (abi3 baseline)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
       - name: Authenticate to Google Cloud
         id: gcp-auth
