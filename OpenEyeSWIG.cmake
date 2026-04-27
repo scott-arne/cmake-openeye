@@ -59,12 +59,18 @@ function(openeye_add_swig_module)
     # -------------------------------------------------------------------------
     # 2. Find Python3 (with SABIModule when STABLE_ABI is ON)
     # -------------------------------------------------------------------------
+    # STABLE_ABI requires Python3::SABIModule, introduced in CMake 3.26.
+    # On Windows this is load-bearing: without it, the extension links
+    # python3XX.lib (versioned) instead of python3.lib (stable-ABI), which
+    # silently breaks the abi3 wheel contract.
+    if(ARG_STABLE_ABI AND CMAKE_VERSION VERSION_LESS "3.26")
+        message(FATAL_ERROR
+            "OpenEyeSWIG: STABLE_ABI=ON requires CMake 3.26+ for the "
+            "Python3::SABIModule imported target. CMake in use: "
+            "${CMAKE_VERSION}. Either upgrade CMake or set STABLE_ABI=OFF.")
+    endif()
     if(ARG_STABLE_ABI)
-        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.26")
-            find_package(Python3 COMPONENTS Interpreter Development.SABIModule REQUIRED)
-        else()
-            find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-        endif()
+        find_package(Python3 COMPONENTS Interpreter Development.SABIModule REQUIRED)
     else()
         find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
     endif()
@@ -102,15 +108,6 @@ function(openeye_add_swig_module)
         target_compile_definitions(${_TARGET_NAME} PRIVATE
             Py_LIMITED_API=0x030A0000
         )
-        if(WIN32)
-            # pyconfig.h auto-links python3.lib via #pragma comment under
-            # Py_LIMITED_API, but the pragma uses the short name — so the
-            # Python libs directory must be on the linker search path.
-            get_filename_component(_OESWIG_PY_LIB_DIR
-                "${Python3_LIBRARY_RELEASE}" DIRECTORY)
-            target_link_directories(${_TARGET_NAME} PRIVATE
-                "${_OESWIG_PY_LIB_DIR}")
-        endif()
         message(STATUS "Building ${ARG_NAME} with Python stable ABI (abi3) for Python 3.10+")
     endif()
 
@@ -143,8 +140,17 @@ function(openeye_add_swig_module)
         target_link_options(${_TARGET_NAME} PRIVATE
             -undefined dynamic_lookup
         )
+    elseif(ARG_STABLE_ABI)
+        # Py_LIMITED_API is defined on the target; link Python3::SABIModule
+        # so the extension resolves against python3.lib -> python3.dll. Linking
+        # Python3::Python here would drag in python3XX.lib (versioned) and
+        # silently break the abi3 wheel contract on Windows.
+        target_link_libraries(${_TARGET_NAME}
+            PRIVATE
+                ${ARG_LINK_LIBS}
+                Python3::SABIModule
+        )
     else()
-        # On other platforms, link against Python normally
         target_link_libraries(${_TARGET_NAME}
             PRIVATE
                 ${ARG_LINK_LIBS}
