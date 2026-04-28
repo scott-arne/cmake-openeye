@@ -343,9 +343,12 @@ if(OPENEYE_INCLUDE_DIR AND EXISTS "${OPENEYE_INCLUDE_DIR}/openeye.h")
         set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
     endif()
 endif()
-# Fallback: extract year from install path (e.g., .../toolkits/2025.2.1/...)
+# Fallback: extract version (or bare year) from install path. Accepts
+# .../toolkits/2025.2.1/..., .../toolkits/2025.2/..., or .../toolkits/2025/...
+# The minor and patch components are optional so a year-only install path still
+# populates OpenEye_SDK_MAJOR (the dep-graph gate only needs the major year).
 if(NOT OpenEye_SDK_MAJOR AND OPENEYE_INCLUDE_DIR)
-    string(REGEX MATCH "/(20[0-9][0-9]\\.[0-9]+(\\.[0-9]+)?)" _MATCH "${OPENEYE_INCLUDE_DIR}")
+    string(REGEX MATCH "/(20[0-9][0-9](\\.[0-9]+(\\.[0-9]+)?)?)" _MATCH "${OPENEYE_INCLUDE_DIR}")
     if(CMAKE_MATCH_1)
         set(OpenEye_SDK_VERSION "${CMAKE_MATCH_1}")
         string(REGEX MATCH "^([0-9]+)" _MAJOR_MATCH "${OpenEye_SDK_VERSION}")
@@ -353,9 +356,15 @@ if(NOT OpenEye_SDK_MAJOR AND OPENEYE_INCLUDE_DIR)
     endif()
 endif()
 if(NOT OpenEye_SDK_MAJOR)
+    # Conservative fallback: bare-year SDK_VERSION so VERSION_GREATER_EQUAL
+    # comparisons (e.g. "2025.2" for the newer OESpruce dep graph) evaluate
+    # FALSE by default. Callers who need the newer graph must set the version
+    # explicitly rather than inheriting it silently from a failed detection.
     set(OpenEye_SDK_MAJOR "2025")
-    set(OpenEye_SDK_VERSION "2025.2")
-    message(WARNING "OpenEye: Could not detect SDK major year, defaulting to ${OpenEye_SDK_MAJOR}")
+    set(OpenEye_SDK_VERSION "2025")
+    message(WARNING "OpenEye: Could not detect SDK version from ${OPENEYE_INCLUDE_DIR}; "
+        "defaulting to OpenEye_SDK_MAJOR=${OpenEye_SDK_MAJOR} and "
+        "OpenEye_SDK_VERSION=${OpenEye_SDK_VERSION} (falls back to the pre-2025.2 dep graph)")
 else()
     message(STATUS "OpenEye: Detected SDK version ${OpenEye_SDK_VERSION}")
 endif()
