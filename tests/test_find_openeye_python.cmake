@@ -42,11 +42,44 @@ if(NOT IS_DIRECTORY "${OpenEyePython_LIB_DIR}")
     message(FATAL_ERROR "FAIL: OpenEyePython_LIB_DIR is not a valid directory: ${OpenEyePython_LIB_DIR}")
 endif()
 
-if(NOT OPENEYE_LIB_DIR)
-    message(FATAL_ERROR "FAIL: OPENEYE_LIB_DIR not propagated for FindOpenEye.cmake consumption")
+if(NOT OPENEYE_RUNTIME_LIB_DIR)
+    message(FATAL_ERROR "FAIL: OPENEYE_RUNTIME_LIB_DIR not propagated for OpenEyeSWIG.cmake consumption")
+endif()
+
+if(NOT OPENEYE_RUNTIME_LIB_DIR STREQUAL OpenEyePython_LIB_DIR)
+    message(FATAL_ERROR
+        "FAIL: OPENEYE_RUNTIME_LIB_DIR does not match OpenEyePython_LIB_DIR: "
+        "${OPENEYE_RUNTIME_LIB_DIR} != ${OpenEyePython_LIB_DIR}")
+endif()
+
+if(NOT WIN32)
+    if(NOT OPENEYE_LIB_DIR)
+        message(FATAL_ERROR "FAIL: OPENEYE_LIB_DIR not propagated for POSIX shared-library link discovery")
+    endif()
+    if(NOT OPENEYE_LIB_DIR STREQUAL OpenEyePython_LIB_DIR)
+        message(FATAL_ERROR
+            "FAIL: OPENEYE_LIB_DIR does not match OpenEyePython_LIB_DIR: "
+            "${OPENEYE_LIB_DIR} != ${OpenEyePython_LIB_DIR}")
+    endif()
+    if(NOT OPENEYE_USE_SHARED)
+        message(FATAL_ERROR "FAIL: OPENEYE_USE_SHARED not enabled for POSIX openeye-toolkits shared libraries")
+    endif()
+endif()
+
+if(OPENEYE_ROOT)
+    include(FindOpenEye)
+    if(NOT OpenEye_FOUND)
+        message(FATAL_ERROR "FAIL: FindOpenEye did not find OpenEye after FindOpenEyePython")
+    endif()
+    if(NOT WIN32 AND NOT OpenEye_LIBRARY_TYPE STREQUAL "SHARED")
+        message(FATAL_ERROR
+            "FAIL: FindOpenEyePython + OPENEYE_USE_SHARED should select shared libraries on POSIX; "
+            "OpenEye_LIBRARY_TYPE=${OpenEye_LIBRARY_TYPE}")
+    endif()
 endif()
 
 message(STATUS "OpenEyePython_LIB_DIR = ${OpenEyePython_LIB_DIR}")
+message(STATUS "OPENEYE_RUNTIME_LIB_DIR = ${OPENEYE_RUNTIME_LIB_DIR}")
 message(STATUS "OpenEyePython_VERSION = ${OpenEyePython_VERSION}")
 message(STATUS "OpenEyePython_PLATFORM = ${OpenEyePython_PLATFORM}")
 message(STATUS "OPENEYE_LIB_DIR = ${OPENEYE_LIB_DIR}")

@@ -176,24 +176,32 @@ add_test(NAME link_all_libraries COMMAND test_all_libraries)
 # v1.1.0: Geometry and optimization targets
 # ---------------------------------------------------------------------------
 if(TARGET OpenEye::OEOpt)
+    target_link_libraries(test_all_libraries PRIVATE OpenEye::OEOpt)
+    target_compile_definitions(test_all_libraries PRIVATE HAS_OEOPT)
     add_executable(test_oeopt test_oeopt.cpp)
     target_link_libraries(test_oeopt PRIVATE OpenEye::OEOpt)
     add_test(NAME link_oeopt COMMAND test_oeopt)
 endif()
 
 if(TARGET OpenEye::OEMolPotential)
+    target_link_libraries(test_all_libraries PRIVATE OpenEye::OEMolPotential)
+    target_compile_definitions(test_all_libraries PRIVATE HAS_OEMOLPOTENTIAL)
     add_executable(test_oemolpotential test_oemolpotential.cpp)
     target_link_libraries(test_oemolpotential PRIVATE OpenEye::OEMolPotential)
     add_test(NAME link_oemolpotential COMMAND test_oemolpotential)
 endif()
 
 if(TARGET OpenEye::OEHermite)
+    target_link_libraries(test_all_libraries PRIVATE OpenEye::OEHermite)
+    target_compile_definitions(test_all_libraries PRIVATE HAS_OEHERMITE)
     add_executable(test_oehermite test_oehermite.cpp)
     target_link_libraries(test_oehermite PRIVATE OpenEye::OEHermite)
     add_test(NAME link_oehermite COMMAND test_oehermite)
 endif()
 
 if(TARGET OpenEye::OEShape)
+    target_link_libraries(test_all_libraries PRIVATE OpenEye::OEShape)
+    target_compile_definitions(test_all_libraries PRIVATE HAS_OESHAPE)
     add_executable(test_oeshape test_oeshape.cpp)
     target_link_libraries(test_oeshape PRIVATE OpenEye::OEShape)
     add_test(NAME link_oeshape COMMAND test_oeshape)
@@ -210,6 +218,8 @@ add_test(
     COMMAND ${CMAKE_COMMAND}
         -DOPENEYE_ROOT=${OPENEYE_ROOT}
         -DOPENEYE_LIB_DIR=${OPENEYE_LIB_DIR}
+        -DOPENEYE_RUNTIME_LIB_DIR=${OPENEYE_RUNTIME_LIB_DIR}
+        -DOPENEYE_USE_SHARED=${OPENEYE_USE_SHARED}
         -DDRIVER_DIR=${CMAKE_CURRENT_BINARY_DIR}/target_assertions_driver
         -P ${CMAKE_CURRENT_SOURCE_DIR}/test_target_assertions.cmake
 )
@@ -227,11 +237,45 @@ add_test(
     NAME find_openeye_python
     COMMAND ${CMAKE_COMMAND}
         -DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/..
+        -DPython3_EXECUTABLE=${Python3_EXECUTABLE}
+        -DOPENEYE_ROOT=${OPENEYE_ROOT}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/test_find_openeye_python.cmake
 )
 # The script prints PASS or SKIP; both are acceptable outcomes
 set_tests_properties(find_openeye_python PROPERTIES
     PASS_REGULAR_EXPRESSION "(PASS|SKIP)"
+)
+
+add_test(
+    NAME oe_dir_cmake_variable
+    COMMAND ${CMAKE_COMMAND}
+        -DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/..
+        -DOE_DIR=${OPENEYE_ROOT}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_oe_dir_variable.cmake
+)
+set_tests_properties(oe_dir_cmake_variable PROPERTIES
+    PASS_REGULAR_EXPRESSION "PASS: OE_DIR CMake variable is honored"
+)
+
+add_test(
+    NAME runtime_lib_dir_shared
+    COMMAND ${CMAKE_COMMAND}
+        -DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/..
+        -DDRIVER_DIR=${CMAKE_CURRENT_BINARY_DIR}/runtime_lib_dir_shared_driver
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_runtime_lib_dir_shared.cmake
+)
+set_tests_properties(runtime_lib_dir_shared PROPERTIES
+    PASS_REGULAR_EXPRESSION "(PASS|SKIP)"
+)
+
+add_test(
+    NAME optional_target_closure
+    COMMAND ${CMAKE_COMMAND}
+        -DDRIVER_DIR=${CMAKE_CURRENT_BINARY_DIR}/optional_target_closure_driver
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_optional_target_closure.cmake
+)
+set_tests_properties(optional_target_closure PROPERTIES
+    PASS_REGULAR_EXPRESSION "PASS: optional target closure satisfied"
 )
 
 # ---------------------------------------------------------------------------
@@ -250,18 +294,24 @@ set_tests_properties(test_sdk_major PROPERTIES
 )
 
 if(TARGET OpenEye::OEZap)
+    target_link_libraries(test_all_libraries PRIVATE OpenEye::OEZap)
+    target_compile_definitions(test_all_libraries PRIVATE HAS_OEZAP)
     add_executable(test_oezap test_oezap.cpp)
     target_link_libraries(test_oezap PRIVATE OpenEye::OEZap)
     add_test(NAME link_oezap COMMAND test_oezap)
 endif()
 
 if(TARGET OpenEye::OESpicoli)
+    target_link_libraries(test_all_libraries PRIVATE OpenEye::OESpicoli)
+    target_compile_definitions(test_all_libraries PRIVATE HAS_OESPICOLI)
     add_executable(test_oespicoli test_oespicoli.cpp)
     target_link_libraries(test_oespicoli PRIVATE OpenEye::OESpicoli)
     add_test(NAME link_oespicoli COMMAND test_oespicoli)
 endif()
 
 if(TARGET OpenEye::OESiteHopper)
+    target_link_libraries(test_all_libraries PRIVATE OpenEye::OESiteHopper)
+    target_compile_definitions(test_all_libraries PRIVATE HAS_OESITEHOPPER)
     add_executable(test_oesitehopper test_oesitehopper.cpp)
     target_link_libraries(test_oesitehopper PRIVATE OpenEye::OESiteHopper)
     add_test(NAME link_oesitehopper COMMAND test_oesitehopper)
@@ -270,6 +320,9 @@ endif()
 foreach(_lib IN ITEMS OEMMFF OEFF OESzybki OEQuacpac OEOmega2 OESheffield)
     string(TOLOWER ${_lib} _lower)
     if(TARGET OpenEye::${_lib})
+        target_link_libraries(test_all_libraries PRIVATE OpenEye::${_lib})
+        string(TOUPPER ${_lib} _upper)
+        target_compile_definitions(test_all_libraries PRIVATE HAS_${_upper})
         add_executable(test_${_lower} test_${_lower}.cpp)
         target_link_libraries(test_${_lower} PRIVATE OpenEye::${_lib})
         add_test(NAME link_${_lower} COMMAND test_${_lower})
@@ -277,6 +330,8 @@ foreach(_lib IN ITEMS OEMMFF OEFF OESzybki OEQuacpac OEOmega2 OESheffield)
 endforeach()
 
 if(TARGET OpenEye::OESpruce)
+    target_link_libraries(test_all_libraries PRIVATE OpenEye::OESpruce)
+    target_compile_definitions(test_all_libraries PRIVATE HAS_OESPRUCE)
     add_executable(test_oespruce test_oespruce.cpp)
     target_link_libraries(test_oespruce PRIVATE OpenEye::OESpruce)
     add_test(NAME link_oespruce COMMAND test_oespruce)
@@ -285,6 +340,9 @@ endif()
 foreach(_lib IN ITEMS OEDepict OEIUPAC)
     string(TOLOWER ${_lib} _lower)
     if(TARGET OpenEye::${_lib})
+        target_link_libraries(test_all_libraries PRIVATE OpenEye::${_lib})
+        string(TOUPPER ${_lib} _upper)
+        target_compile_definitions(test_all_libraries PRIVATE HAS_${_upper})
         add_executable(test_${_lower} test_${_lower}.cpp)
         target_link_libraries(test_${_lower} PRIVATE OpenEye::${_lib})
         add_test(NAME link_${_lower} COMMAND test_${_lower})
@@ -296,7 +354,7 @@ endforeach()
 # with STABLE_ABI=ON, then on Windows asserts the compiled .pyd links
 # python3.dll and not python3XX.dll. Guards the bug documented in
 # docs/bugs/2026-04-27-windows-stable-abi-wrong-python-dll.md.
-# Requires CMake 3.26+ (SABIModule) and SWIG 4.0+.
+# Requires CMake 3.26+ (SABIModule) and SWIG 4.2+.
 # ---------------------------------------------------------------------------
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.26")
     find_package(SWIG 4.2 QUIET)

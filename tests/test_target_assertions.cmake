@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 # Script-mode driver for CMake target assertions.
 #
-# Usage: cmake -DOPENEYE_ROOT=... [-DOPENEYE_LIB_DIR=...] -P test_target_assertions.cmake
+# Usage: cmake -DOPENEYE_ROOT=... [-DOPENEYE_LIB_DIR=...] [-DOPENEYE_RUNTIME_LIB_DIR=...] -P test_target_assertions.cmake
 #
 # Why this is a driver rather than a direct script: FindOpenEye.cmake only
 # creates IMPORTED targets when NOT in script mode (see the CMAKE_SCRIPT_MODE_FILE
@@ -177,7 +177,7 @@ endif()
 
 # --- v1.1.0 (A6): Spruce (SDK-major-dependent) ----------------------------
 if(TARGET OpenEye::OESpruce)
-    if(OpenEye_SDK_MAJOR GREATER_EQUAL 2025)
+    if(OpenEye_SDK_VERSION VERSION_GREATER_EQUAL 2025.2)
         assert_interface_link_libraries(OpenEye::OESpruce
             "OpenEye::OEChem;OpenEye::OEBio;OpenEye::OESiteHopper;OpenEye::OEQuacpac;OpenEye::OEMMFF;OpenEye::OEOmega2;OpenEye::OESheffield")
     else()
@@ -197,7 +197,7 @@ endif()
 if(_fail)
     message(FATAL_ERROR "One or more target assertions failed")
 else()
-    message(STATUS "PASS: all target assertions satisfied (SDK ${OpenEye_SDK_MAJOR})")
+    message(STATUS "PASS: all target assertions satisfied (SDK ${OpenEye_SDK_VERSION})")
 endif()
 ]])
 
@@ -207,6 +207,9 @@ file(WRITE "${_driver_dir}/CMakeLists.txt" "${_asserts_cmakelists}")
 set(_extra_defs "")
 if(OPENEYE_LIB_DIR)
     list(APPEND _extra_defs "-DOPENEYE_LIB_DIR=${OPENEYE_LIB_DIR}")
+endif()
+if(OPENEYE_RUNTIME_LIB_DIR)
+    list(APPEND _extra_defs "-DOPENEYE_RUNTIME_LIB_DIR=${OPENEYE_RUNTIME_LIB_DIR}")
 endif()
 if(OPENEYE_USE_SHARED)
     list(APPEND _extra_defs "-DOPENEYE_USE_SHARED=${OPENEYE_USE_SHARED}")
