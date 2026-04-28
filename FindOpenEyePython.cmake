@@ -15,7 +15,9 @@
 #   OpenEyePython_LIB_DIR          - Absolute path to the shared library directory
 #   OpenEyePython_VERSION          - Marketing version (e.g., "2025.2.1")
 #   OpenEyePython_PLATFORM         - Platform subdirectory name (e.g., "osx-arm64-14-clang-15.0")
-#   OPENEYE_LIB_DIR                - Set for FindOpenEye.cmake consumption
+#   OPENEYE_LIB_DIR                - Set on POSIX for FindOpenEye.cmake shared-link discovery
+#   OPENEYE_RUNTIME_LIB_DIR        - Set for OpenEyeSWIG.cmake runtime/RPATH handling
+#   OPENEYE_USE_SHARED             - Set ON on POSIX for openeye-toolkits shared-library builds
 #   OPENEYE_TOOLKITS_VERSION       - Set for _build_info.py generation
 
 # Check that Python3 is available
@@ -116,11 +118,14 @@ set(OpenEyePython_PLATFORM "${_OE_PLATFORM}")
 # versioned .so/.dylib on POSIX, flat .dll on Windows). It is consumed by
 # OpenEyeSWIG.cmake to compute RPATH on POSIX; Windows resolves DLLs at Python
 # import time via openeye.libs' os.add_dll_directory() side effect.
-# We intentionally do NOT override OPENEYE_LIB_DIR — that points at the C++ SDK
-# lib/ directory for link-time library discovery, and on Windows the wheel has
-# no .lib import libraries so overriding it would break the MSVC linker.
 set(OPENEYE_RUNTIME_LIB_DIR "${_OE_LIB_DIR}" CACHE PATH "Runtime shared-library directory from openeye-toolkits Python package" FORCE)
 set(OPENEYE_TOOLKITS_VERSION "${_OE_MARKETING_VERSION}" CACHE STRING "OpenEye toolkits marketing version from Python package")
+if(NOT WIN32)
+    # POSIX openeye-toolkits ships linkable versioned .so/.dylib files in the
+    # runtime library directory, so it is also the shared link-time directory.
+    set(OPENEYE_LIB_DIR "${_OE_LIB_DIR}" CACHE PATH "OpenEye shared-library directory from openeye-toolkits Python package" FORCE)
+    set(OPENEYE_USE_SHARED ON CACHE BOOL "Prefer shared OpenEye libraries from openeye-toolkits" FORCE)
+endif()
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(OpenEyePython

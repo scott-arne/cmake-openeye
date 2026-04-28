@@ -54,7 +54,11 @@ function(openeye_add_swig_module)
     # -------------------------------------------------------------------------
     # 1. Find SWIG
     # -------------------------------------------------------------------------
-    find_package(SWIG 4.0 REQUIRED)
+    if(ARG_STABLE_ABI)
+        find_package(SWIG 4.2 REQUIRED)
+    else()
+        find_package(SWIG 4.0 REQUIRED)
+    endif()
 
     # -------------------------------------------------------------------------
     # 2. Find Python3 (with SABIModule when STABLE_ABI is ON)
@@ -178,6 +182,8 @@ function(openeye_add_swig_module)
     if(NOT DEFINED _OE_SWIG_PLATFORM)
         if(DEFINED OpenEyePython_PLATFORM AND OpenEyePython_PLATFORM)
             set(_OE_SWIG_PLATFORM "${OpenEyePython_PLATFORM}")
+        elseif(DEFINED OPENEYE_RUNTIME_LIB_DIR AND OPENEYE_RUNTIME_LIB_DIR)
+            get_filename_component(_OE_SWIG_PLATFORM "${OPENEYE_RUNTIME_LIB_DIR}" NAME)
         elseif(OpenEye_LIBRARY_TYPE STREQUAL "SHARED")
             execute_process(
                 COMMAND ${Python3_EXECUTABLE} -c
@@ -268,7 +274,9 @@ function(openeye_add_swig_module)
     # -------------------------------------------------------------------------
     # Determine absolute OpenEye lib dir for dev installs
     if(OpenEye_LIBRARY_TYPE STREQUAL "SHARED" AND _OE_SWIG_PLATFORM)
-        if(DEFINED OpenEyePython_LIB_DIR AND OpenEyePython_LIB_DIR)
+        if(DEFINED OPENEYE_RUNTIME_LIB_DIR AND OPENEYE_RUNTIME_LIB_DIR)
+            set(_DEV_OE_LIB_DIR "${OPENEYE_RUNTIME_LIB_DIR}")
+        elseif(DEFINED OpenEyePython_LIB_DIR AND OpenEyePython_LIB_DIR)
             set(_DEV_OE_LIB_DIR "${OpenEyePython_LIB_DIR}")
         else()
             execute_process(
