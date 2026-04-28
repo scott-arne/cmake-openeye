@@ -293,6 +293,22 @@ set_tests_properties(test_sdk_major PROPERTIES
     PASS_REGULAR_EXPRESSION "PASS: OpenEye_SDK_MAJOR=20[0-9][0-9]"
 )
 
+# ---------------------------------------------------------------------------
+# SDK version fallback-branch coverage (bare-year install path + conservative
+# warning-branch default). test_sdk_major runs against the real preset SDK;
+# this test exercises the two fallback paths with synthetic fake SDKs.
+# ---------------------------------------------------------------------------
+add_test(
+    NAME sdk_version_fallbacks
+    COMMAND ${CMAKE_COMMAND}
+        -DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/..
+        -DDRIVER_DIR=${CMAKE_CURRENT_BINARY_DIR}/sdk_version_fallbacks_driver
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_sdk_version_fallbacks.cmake
+)
+set_tests_properties(sdk_version_fallbacks PROPERTIES
+    PASS_REGULAR_EXPRESSION "PASS: SDK version fallbacks satisfied"
+)
+
 if(TARGET OpenEye::OEZap)
     target_link_libraries(test_all_libraries PRIVATE OpenEye::OEZap)
     target_compile_definitions(test_all_libraries PRIVATE HAS_OEZAP)
