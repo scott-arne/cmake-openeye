@@ -6,6 +6,7 @@ Shared CMake modules for C++ projects that depend on the [OpenEye](https://www.e
 
 - CMake 3.16 or later
 - SWIG 4.0 or later (for Python bindings only)
+- CMake 3.26 or later and SWIG 4.2 or later when `STABLE_ABI` is `ON`
 - Python 3.10 or later (for Python bindings only)
 - zlib (system)
 
@@ -30,7 +31,8 @@ Set one of the following to point to your OpenEye installation:
 | Variable | Description |
 |---|---|
 | `OPENEYE_ROOT` / `OE_DIR` | Root directory of the OpenEye installation (environment variable or CMake variable) |
-| `OPENEYE_LIB_DIR` | Explicit path to the library directory, useful when libraries live outside the standard install tree (e.g., from the `openeye-toolkits` Python package) |
+| `OPENEYE_LIB_DIR` | Explicit link-time library directory, useful when libraries live outside the standard install tree (e.g., POSIX shared libraries from `openeye-toolkits`) |
+| `OPENEYE_RUNTIME_LIB_DIR` | Runtime shared-library directory, used for SWIG RPATH/editable-install handling |
 
 #### Options
 
@@ -83,6 +85,7 @@ Linking against a target automatically pulls in its transitive dependencies.
 | `OpenEye_MedChem_FOUND` | `TRUE` if OEMedChem was found |
 | `OpenEye_Grid_FOUND` | `TRUE` if OEGrid was found |
 | `OpenEye_SDK_MAJOR` | Detected marketing year (e.g., `2025`); drives OESpruce dep-graph selection |
+| `OpenEye_SDK_VERSION` | Detected marketing release (e.g., `2025.2.1`); drives SDK-version-specific dependencies |
 
 #### Basic Usage
 
@@ -97,7 +100,7 @@ target_link_libraries(my_app PRIVATE OpenEye::OEChem)
 
 ### FindOpenEyePython
 
-Auto-discovers OpenEye shared libraries from an installed `openeye-toolkits` Python package. It queries the Python environment at configure time and sets `OPENEYE_LIB_DIR` and `OPENEYE_USE_SHARED` so that `FindOpenEye` can locate the shared libraries without manual path configuration.
+Auto-discovers OpenEye shared libraries from an installed `openeye-toolkits` Python package. It queries the Python environment at configure time and sets `OPENEYE_RUNTIME_LIB_DIR` and `OPENEYE_TOOLKITS_VERSION`. On POSIX, where the wheel contains linkable `.dylib`/`.so` files, it also sets `OPENEYE_LIB_DIR` and enables `OPENEYE_USE_SHARED` so that `FindOpenEye` selects those shared libraries. On Windows, the wheel contains runtime `.dll` files but no MSVC import libraries, so SDK static `.lib` files remain the link-time inputs.
 
 `Python3_EXECUTABLE` must be available before calling this module. Call `find_package(Python3 COMPONENTS Interpreter)` first.
 
@@ -109,13 +112,15 @@ Auto-discovers OpenEye shared libraries from an installed `openeye-toolkits` Pyt
 | `OpenEyePython_LIB_DIR` | Absolute path to the shared library directory |
 | `OpenEyePython_VERSION` | Marketing version (e.g., `2025.2.1`) |
 | `OpenEyePython_PLATFORM` | Platform subdirectory name (e.g., `osx-arm64-14-clang-15.0`) |
+| `OPENEYE_RUNTIME_LIB_DIR` | Runtime shared-library directory from `openeye-toolkits` |
+| `OPENEYE_LIB_DIR` | POSIX-only link-time shared-library directory from `openeye-toolkits` |
 
 #### Usage
 
 ```cmake
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 find_package(OpenEyePython REQUIRED)
-find_package(OpenEye REQUIRED)  # OPENEYE_LIB_DIR is now set automatically
+find_package(OpenEye REQUIRED)  # POSIX: shared wheel libs; Windows: SDK static libs
 ```
 
 ### OpenEyeSWIG
@@ -147,7 +152,7 @@ openeye_add_swig_module(
 | `SWIG_FILE` | Yes | Path to the `.i` SWIG interface file. |
 | `LINK_LIBS` | Yes | Libraries to link. The first entry is treated as the primary project library and is copied alongside the extension. |
 | `PYTHON_OUTPUT_DIR` | Yes | Directory where the built module and wrapper are copied after each build (for editable installs). |
-| `STABLE_ABI` | No | When `ON`, compiles with `Py_LIMITED_API` targeting Python 3.10+. Default: `OFF`. |
+| `STABLE_ABI` | No | When `ON`, compiles with `Py_LIMITED_API` targeting Python 3.10+. Requires CMake 3.26+ and SWIG 4.2+. Default: `OFF`. |
 | `SWIG_FLAGS` | No | Additional flags passed to the SWIG compiler. |
 | `COMPILE_DEFS` | No | Additional preprocessor definitions for the extension module. |
 | `EXTRA_INSTALL_TARGETS` | No | Additional CMake targets to install alongside the extension. |
@@ -198,10 +203,11 @@ You can also create a `tests/CMakeUserPresets.json` (gitignored) with your own p
 
 ## Platform Support
 
-These modules support macOS and Linux. Platform-specific behavior includes:
+These modules support macOS, Linux, and Windows. Platform-specific behavior includes:
 
 - **macOS**: Shared library discovery uses `.dylib` extensions. RPATH is set via `@loader_path`. The SWIG extension uses `-undefined dynamic_lookup` for Python symbol resolution and is re-signed with `codesign` after RPATH patching.
 - **Linux**: Shared library discovery uses `.so` extensions. RPATH is set via `$ORIGIN`. RPATH patching uses `patchelf` when available.
+- **Windows**: The OpenEye SDK is treated as static-only for link-time `.lib` inputs. `OPENEYE_USE_SHARED` is forced off, OpenEye runtime DLL discovery is delegated to `openeye.libs`, and stable-ABI extensions link `Python3::SABIModule` so abi3 wheels import `python3.dll` rather than a versioned `python3XX.dll`.
 
 ## License
 
