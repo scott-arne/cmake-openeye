@@ -37,7 +37,12 @@ jobs:
         run: |
           dnf install -y epel-release
           dnf config-manager --set-enabled ${{ matrix.dnf_repo }}
-          dnf install -y --allowerasing \
+          # --nobest: Rocky 9 AppStream periodically ships newer -devel packages
+          # (e.g. python3-devel-3.9.25-3.el9_7.3) before the matching runtime
+          # package lands in baseos. Without --nobest dnf refuses to fall back
+          # to a compatible older -devel. --allowerasing covers curl-minimal
+          # being replaced by curl on some container images.
+          dnf install -y --allowerasing --nobest \
             git curl unzip gcc gcc-c++ cmake ninja-build \
             zlib-devel swig python3-devel
 
