@@ -1,1 +1,64 @@
+# Local editor and assistant state
+.vscode/
+.idea/
+.vs/
+.claude/
+
+# macOS and editor noise
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+*.swp
+*.swo
+*~
+
+# CMake build trees and generated files
+build/
+build-*/
+cmake-build-*/
+out/
+_build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+install_manifest.txt
+compile_commands.json
+CMakeUserPresets.json
+
+# C and C++ build artifacts
+*.o
+*.obj
+*.lo
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app/
+*.dSYM/
+*.pdb
+*.ilk
+*.exp
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Local planning and generated notes
 docs/bugs/
+docs/superpowers/
+docs/followups/
