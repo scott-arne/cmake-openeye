@@ -18,7 +18,11 @@ if(NOT OpenEye_SDK_MAJOR MATCHES "^(2024|2025|2026|2027)$")
     message(FATAL_ERROR "FAIL: OpenEye_SDK_MAJOR=${OpenEye_SDK_MAJOR} is not a plausible year")
 endif()
 
-if(NOT OpenEye_SDK_VERSION MATCHES "^20[0-9][0-9]\\.[0-9]+(\\.[0-9]+)?$")
+# Accept either a full .minor(.patch) release OR the bare-year conservative
+# fallback. The warning-branch contract is covered in detail by
+# test_sdk_version_fallbacks.cmake; here we only need to confirm that
+# FindOpenEye produced *some* plausible value against the real preset SDK.
+if(NOT OpenEye_SDK_VERSION MATCHES "^20[0-9][0-9](\\.[0-9]+(\\.[0-9]+)?)?$")
     message(FATAL_ERROR "FAIL: OpenEye_SDK_VERSION=${OpenEye_SDK_VERSION} is not a plausible release")
 endif()
 
