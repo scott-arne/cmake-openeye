@@ -90,7 +90,15 @@ if(OPENEYE_USE_SHARED AND NOT OPENEYE_LIB_DIR AND NOT OPENEYE_RUNTIME_LIB_DIR)
         "Consider using FindOpenEyePython.cmake to auto-detect the library directory.")
 endif()
 
-# Look for the include directory
+# Look for the include directory. System fallbacks (/opt/openeye, /usr/local)
+# are consulted only when no explicit hint was given, for the same reason as
+# _OPENEYE_SYSTEM_LIB_FALLBACKS below: a host with a stray full SDK at
+# /opt/openeye must not be able to override a caller who pointed us elsewhere.
+if(OPENEYE_ROOT OR OE_DIR OR DEFINED ENV{OPENEYE_ROOT} OR DEFINED ENV{OE_DIR})
+    set(_OPENEYE_SYSTEM_INCLUDE_FALLBACKS)
+else()
+    set(_OPENEYE_SYSTEM_INCLUDE_FALLBACKS /opt/openeye/include /usr/local/openeye/include)
+endif()
 find_path(OPENEYE_INCLUDE_DIR
     NAMES openeye.h
     PATHS
@@ -98,8 +106,7 @@ find_path(OPENEYE_INCLUDE_DIR
         ${OE_DIR}/include
         $ENV{OPENEYE_ROOT}/include
         $ENV{OE_DIR}/include
-        /opt/openeye/include
-        /usr/local/openeye/include
+        ${_OPENEYE_SYSTEM_INCLUDE_FALLBACKS}
     PATH_SUFFIXES openeye
 )
 
@@ -125,6 +132,18 @@ if(OPENEYE_USE_SHARED)
         set(CMAKE_FIND_LIBRARY_SUFFIXES .so .a)
     endif()
     message(STATUS "OpenEye: Preferring shared libraries for dynamic linking")
+endif()
+
+# System fallback dirs are consulted only when no explicit hint was given.
+# Otherwise a caller pointing at a partial/overlay SDK via OPENEYE_ROOT could
+# silently pick up stray libraries from /opt/openeye/lib and mix-and-match
+# the two trees — which broke test_optional_target_closure on CI runners
+# that happened to have a full SDK installed at /opt/openeye.
+if(OPENEYE_ROOT OR OE_DIR OR OPENEYE_LIB_DIR OR OPENEYE_RUNTIME_LIB_DIR
+        OR DEFINED ENV{OPENEYE_ROOT} OR DEFINED ENV{OE_DIR})
+    set(_OPENEYE_SYSTEM_LIB_FALLBACKS)
+else()
+    set(_OPENEYE_SYSTEM_LIB_FALLBACKS /opt/openeye/lib /usr/local/openeye/lib)
 endif()
 
 # Helper macro to find OpenEye library, handling versioned names (e.g., liboechem-4.3.0.1.dylib)
@@ -164,8 +183,7 @@ macro(find_openeye_library VAR_NAME LIB_NAME)
                 ${OE_DIR}/lib
                 $ENV{OPENEYE_ROOT}/lib
                 $ENV{OE_DIR}/lib
-                /opt/openeye/lib
-                /usr/local/openeye/lib
+                ${_OPENEYE_SYSTEM_LIB_FALLBACKS}
             NO_DEFAULT_PATH
         )
     endif()
@@ -231,8 +249,7 @@ if(NOT OEZSTD_LIBRARY)
             ${OE_DIR}/lib
             $ENV{OPENEYE_ROOT}/lib
             $ENV{OE_DIR}/lib
-            /opt/openeye/lib
-            /usr/local/openeye/lib
+            ${_OPENEYE_SYSTEM_LIB_FALLBACKS}
         NO_DEFAULT_PATH
     )
 endif()
@@ -328,25 +345,52 @@ if(OpenEye_FOUND)
     set(OpenEye_LIBRARY_TYPE ${OPENEYE_LIBRARY_TYPE} CACHE STRING "OpenEye library type (SHARED or STATIC)")
 endif()
 
-# Detect the OpenEye SDK major year (e.g., 2024, 2025). The dep graph changes
-# across SDK majors (notably OESpruce in 2025.2+), so downstream logic may
-# condition on OpenEye_SDK_MAJOR.
+# Detect the OpenEye SDK major year (e.g., 2024, 2025) and full release. The
+# dep graph changes across SDK majors (notably OESpruce in 2025.2+), so
+# downstream logic may condition on OpenEye_SDK_VERSION / OpenEye_SDK_MAJOR.
+#
+# Sources, in priority order:
+#   1. README.txt at the SDK root ("OpenEye Toolkits vYYYY.N.N ..."). Shipped
+#      in every SDK tarball and carries the full release triplet.
+#   2. The install-path regex, accepting .../toolkits/YYYY.N.N/... through
+#      .../toolkits/YYYY/... Covers Python-package-style install layouts.
+#   3. A bare-year conservative fallback. Deliberately NOT ".N" so
+#      VERSION_GREATER_EQUAL "2025.2" evaluates FALSE by default — callers who
+#      need the newer dep graph must set the version explicitly rather than
+#      silently inheriting it from a failed detection.
 set(OpenEye_SDK_VERSION "")
 set(OpenEye_SDK_MAJOR "")
-if(OPENEYE_INCLUDE_DIR AND EXISTS "${OPENEYE_INCLUDE_DIR}/openeye.h")
-    file(STRINGS "${OPENEYE_INCLUDE_DIR}/openeye.h" _OE_RELEASE_LINE
-        REGEX "OEToolkitsRelease[ \t]+\"[0-9]+\\.[0-9]+")
-    if(_OE_RELEASE_LINE)
-        string(REGEX MATCH "\"([0-9]+\\.[0-9]+(\\.[0-9]+)?)" _MATCH "${_OE_RELEASE_LINE}")
-        set(OpenEye_SDK_VERSION "${CMAKE_MATCH_1}")
-        string(REGEX MATCH "^([0-9]+)" _MAJOR_MATCH "${OpenEye_SDK_VERSION}")
-        set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
+if(OPENEYE_INCLUDE_DIR)
+    # PATH_SUFFIXES openeye means find_path can land on either include/ (real
+    # SDK) or include/openeye/ (synthetic test fixtures). Walk upward until we
+    # find a directory containing README.txt, checking at most three levels.
+    set(_OE_SDK_SEARCH "${OPENEYE_INCLUDE_DIR}")
+    set(_OE_README "")
+    foreach(_ _ _ _)
+        get_filename_component(_OE_SDK_SEARCH "${_OE_SDK_SEARCH}/.." ABSOLUTE)
+        if(EXISTS "${_OE_SDK_SEARCH}/README.txt")
+            set(_OE_README "${_OE_SDK_SEARCH}/README.txt")
+            break()
+        endif()
+        if(_OE_SDK_SEARCH STREQUAL "/")
+            break()
+        endif()
+    endforeach()
+    if(_OE_README)
+        file(STRINGS "${_OE_README}" _OE_README_LINE
+            REGEX "OpenEye Toolkits[ \t]+v[0-9]+\\.[0-9]+(\\.[0-9]+)?")
+        if(_OE_README_LINE)
+            string(REGEX MATCH "v([0-9]+\\.[0-9]+(\\.[0-9]+)?)" _MATCH "${_OE_README_LINE}")
+            set(OpenEye_SDK_VERSION "${CMAKE_MATCH_1}")
+            string(REGEX MATCH "^([0-9]+)" _MAJOR_MATCH "${OpenEye_SDK_VERSION}")
+            set(OpenEye_SDK_MAJOR "${CMAKE_MATCH_1}")
+        endif()
     endif()
 endif()
-# Fallback: extract version (or bare year) from install path. Accepts
-# .../toolkits/2025.2.1/..., .../toolkits/2025.2/..., or .../toolkits/2025/...
-# The minor and patch components are optional so a year-only install path still
-# populates OpenEye_SDK_MAJOR (the dep-graph gate only needs the major year).
+# Install-path fallback. Accepts .../toolkits/2025.2.1/..., .../toolkits/2025.2/...,
+# or bare-year .../toolkits/2025/... The minor/patch components are optional so a
+# year-only install path still populates OpenEye_SDK_MAJOR (the dep-graph gate
+# only needs the major year).
 if(NOT OpenEye_SDK_MAJOR AND OPENEYE_INCLUDE_DIR)
     string(REGEX MATCH "/(20[0-9][0-9](\\.[0-9]+(\\.[0-9]+)?)?)" _MATCH "${OPENEYE_INCLUDE_DIR}")
     if(CMAKE_MATCH_1)
@@ -356,10 +400,6 @@ if(NOT OpenEye_SDK_MAJOR AND OPENEYE_INCLUDE_DIR)
     endif()
 endif()
 if(NOT OpenEye_SDK_MAJOR)
-    # Conservative fallback: bare-year SDK_VERSION so VERSION_GREATER_EQUAL
-    # comparisons (e.g. "2025.2" for the newer OESpruce dep graph) evaluate
-    # FALSE by default. Callers who need the newer graph must set the version
-    # explicitly rather than inheriting it silently from a failed detection.
     set(OpenEye_SDK_MAJOR "2025")
     set(OpenEye_SDK_VERSION "2025")
     message(WARNING "OpenEye: Could not detect SDK version from ${OPENEYE_INCLUDE_DIR}; "
