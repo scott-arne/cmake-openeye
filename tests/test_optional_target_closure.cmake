@@ -63,12 +63,20 @@ endif()
 message(STATUS "PASS: optional OpenEye targets have closed dependencies")
 ]])
 
+# Scrub OPENEYE_ROOT / OE_DIR from the sub-configure's environment and pin
+# OPENEYE_LIB_DIR explicitly. FindOpenEye's find_library fallback lists
+# $ENV{OPENEYE_ROOT}/lib, $ENV{OE_DIR}/lib, /opt/openeye/lib, and
+# /usr/local/openeye/lib; on CI any of those can hold a full real SDK that
+# would resolve oeshape/oespicoli and break this test's negative assertion
+# about OESiteHopper. Forcing OPENEYE_LIB_DIR means the probe is self-contained.
 execute_process(
-    COMMAND ${CMAKE_COMMAND}
+    COMMAND ${CMAKE_COMMAND} -E env --unset=OPENEYE_ROOT --unset=OE_DIR
+        ${CMAKE_COMMAND}
         -S "${_project_dir}"
         -B "${_build_dir}"
         "-DTEST_ROOT=${CMAKE_CURRENT_LIST_DIR}/.."
         "-DOPENEYE_ROOT=${_sdk_dir}"
+        "-DOPENEYE_LIB_DIR=${_sdk_dir}/lib"
     RESULT_VARIABLE _rc
     OUTPUT_VARIABLE _out
     ERROR_VARIABLE _err
