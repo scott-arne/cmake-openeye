@@ -32,6 +32,10 @@
 #   OpenEye::OESiteHopper   - OESiteHopper library (if available)
 #   OpenEye::OEMMFF         - OEMMFF library (if available)
 #   OpenEye::OEFF           - OEFF library (if available)
+#   OpenEye::OESmirnoff     - OESmirnoff library (if available)
+#   OpenEye::OEAmber        - OEAmber library (if available)
+#   OpenEye::OEAM1          - OEAM1 library (if available)
+#   OpenEye::OEAM1BCC       - OEAM1BCC library (if available)
 #   OpenEye::OESzybki       - OESzybki library (if available)
 #   OpenEye::OEQuacpac      - OEQuacpac library (if available)
 #   OpenEye::OEOmega2       - OEOmega2 library (if available)
@@ -212,6 +216,10 @@ find_openeye_library(OESPICOLI_LIBRARY oespicoli)
 find_openeye_library(OESITEHOPPER_LIBRARY oesitehopper)
 find_openeye_library(OEMMFF_LIBRARY oemmff)
 find_openeye_library(OEFF_LIBRARY oeff)
+find_openeye_library(OESMIRNOFF_LIBRARY oesmirnoff)
+find_openeye_library(OEAMBER_LIBRARY oeamber)
+find_openeye_library(OEAM1_LIBRARY oeam1)
+find_openeye_library(OEAM1BCC_LIBRARY oeam1bcc)
 find_openeye_library(OESZYBKI_LIBRARY oeszybki)
 find_openeye_library(OEQUACPAC_LIBRARY oequacpac)
 find_openeye_library(OEOMEGA2_LIBRARY oeomega2)
@@ -644,12 +652,55 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         set(OpenEye_MMFF_FOUND TRUE)
     endif()
 
-    if(OEFF_LIBRARY)
+    # Newer force-field stacks split SMIRNOFF, Amber, and AM1-BCC support into
+    # separate archives. Model them explicitly so static consumers do not need
+    # to know private toolkit-library closure details.
+    if(OEAMBER_LIBRARY AND TARGET OpenEye::OEMolPotential)
+        add_library(OpenEye::OEAmber UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEAmber PROPERTIES
+            IMPORTED_LOCATION "${OEAMBER_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMolPotential"
+        )
+        set(OpenEye_Amber_FOUND TRUE)
+    endif()
+
+    if(OESMIRNOFF_LIBRARY AND TARGET OpenEye::OEMolPotential AND TARGET OpenEye::OEAmber)
+        add_library(OpenEye::OESmirnoff UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OESmirnoff PROPERTIES
+            IMPORTED_LOCATION "${OESMIRNOFF_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMolPotential;OpenEye::OEAmber"
+        )
+        set(OpenEye_Smirnoff_FOUND TRUE)
+    endif()
+
+    if(OEAM1_LIBRARY AND TARGET OpenEye::OEMolPotential)
+        add_library(OpenEye::OEAM1 UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEAM1 PROPERTIES
+            IMPORTED_LOCATION "${OEAM1_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMolPotential"
+        )
+        set(OpenEye_AM1_FOUND TRUE)
+    endif()
+
+    if(OEAM1BCC_LIBRARY AND TARGET OpenEye::OEAM1)
+        add_library(OpenEye::OEAM1BCC UNKNOWN IMPORTED)
+        set_target_properties(OpenEye::OEAM1BCC PROPERTIES
+            IMPORTED_LOCATION "${OEAM1BCC_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEAM1"
+        )
+        set(OpenEye_AM1BCC_FOUND TRUE)
+    endif()
+
+    if(OEFF_LIBRARY AND TARGET OpenEye::OEMolPotential AND TARGET OpenEye::OESmirnoff AND TARGET OpenEye::OEAmber)
         add_library(OpenEye::OEFF UNKNOWN IMPORTED)
         set_target_properties(OpenEye::OEFF PROPERTIES
             IMPORTED_LOCATION "${OEFF_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
-            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMolPotential;OpenEye::OESmirnoff;OpenEye::OEAmber"
         )
         set(OpenEye_FF_FOUND TRUE)
     endif()
@@ -667,22 +718,22 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         set(OpenEye_Szybki_FOUND TRUE)
     endif()
 
-    if(OEQUACPAC_LIBRARY AND TARGET OpenEye::OESzybki)
+    if(OEQUACPAC_LIBRARY AND TARGET OpenEye::OESzybki AND TARGET OpenEye::OEAmber AND TARGET OpenEye::OEAM1BCC)
         add_library(OpenEye::OEQuacpac UNKNOWN IMPORTED)
         set_target_properties(OpenEye::OEQuacpac PROPERTIES
             IMPORTED_LOCATION "${OEQUACPAC_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
-            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OESzybki"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OESzybki;OpenEye::OEAmber;OpenEye::OEAM1BCC"
         )
         set(OpenEye_Quacpac_FOUND TRUE)
     endif()
 
-    if(OEOMEGA2_LIBRARY AND TARGET OpenEye::OEMMFF)
+    if(OEOMEGA2_LIBRARY AND TARGET OpenEye::OEMMFF AND TARGET OpenEye::OESmirnoff)
         add_library(OpenEye::OEOmega2 UNKNOWN IMPORTED)
         set_target_properties(OpenEye::OEOmega2 PROPERTIES
             IMPORTED_LOCATION "${OEOMEGA2_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
-            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMMFF"
+            INTERFACE_LINK_LIBRARIES "OpenEye::OEChem;OpenEye::OEMMFF;OpenEye::OESmirnoff"
         )
         set(OpenEye_Omega2_FOUND TRUE)
     endif()
@@ -800,6 +851,10 @@ mark_as_advanced(
     OEOMEGA2_LIBRARY
     OESHEFFIELD_LIBRARY
     OESPRUCE_LIBRARY
+    OESMIRNOFF_LIBRARY
+    OEAMBER_LIBRARY
+    OEAM1_LIBRARY
+    OEAM1BCC_LIBRARY
     OEDEPICT_LIBRARY
     OEIUPAC_LIBRARY
 )

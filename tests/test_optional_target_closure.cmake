@@ -20,7 +20,7 @@ file(MAKE_DIRECTORY "${_sdk_dir}/include/openeye" "${_sdk_dir}/lib" "${_project_
 
 file(WRITE "${_sdk_dir}/include/openeye/openeye.h" "#define OEToolkitsRelease \"2025.2.1\"\n")
 
-foreach(_lib IN ITEMS oechem oesystem oeplatform oemath oesitehopper)
+foreach(_lib IN ITEMS oechem oesystem oeplatform oemath oesitehopper oeff)
     file(WRITE "${_sdk_dir}/lib/lib${_lib}.a" "")
 endforeach()
 
@@ -58,6 +58,9 @@ endif()
 
 if(TARGET OpenEye::OESiteHopper)
     message(FATAL_ERROR "FAIL: OpenEye::OESiteHopper should not exist without OpenEye::OEShape and OpenEye::OESpicoli")
+endif()
+if(TARGET OpenEye::OEFF)
+    message(FATAL_ERROR "FAIL: OpenEye::OEFF should not exist without OpenEye::OEMolPotential, OpenEye::OESmirnoff, and OpenEye::OEAmber")
 endif()
 
 message(STATUS "PASS: optional OpenEye targets have closed dependencies")

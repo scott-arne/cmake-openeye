@@ -64,10 +64,14 @@ Linking against a target automatically pulls in its transitive dependencies.
 | `OpenEye::OESpicoli` | No | `OpenEye::OEChem`, `OpenEye::OEZap`, `OpenEye::OEBio` |
 | `OpenEye::OESiteHopper` | No | `OpenEye::OEChem`, `OpenEye::OEShape`, `OpenEye::OESpicoli` |
 | `OpenEye::OEMMFF` | No | `OpenEye::OEChem`, `OpenEye::OEMolPotential` |
-| `OpenEye::OEFF` | No | `OpenEye::OEChem` |
+| `OpenEye::OEAmber` | No | `OpenEye::OEChem`, `OpenEye::OEMolPotential` |
+| `OpenEye::OESmirnoff` | No | `OpenEye::OEChem`, `OpenEye::OEMolPotential`, `OpenEye::OEAmber` |
+| `OpenEye::OEAM1` | No | `OpenEye::OEChem`, `OpenEye::OEMolPotential` |
+| `OpenEye::OEAM1BCC` | No | `OpenEye::OEChem`, `OpenEye::OEAM1` |
+| `OpenEye::OEFF` | No | `OpenEye::OEChem`, `OpenEye::OEMolPotential`, `OpenEye::OESmirnoff`, `OpenEye::OEAmber` |
 | `OpenEye::OESzybki` | No | `OpenEye::OEChem`, `OpenEye::OEMMFF`, `OpenEye::OEFF`, `OpenEye::OEBio` |
-| `OpenEye::OEQuacpac` | No | `OpenEye::OEChem`, `OpenEye::OESzybki` |
-| `OpenEye::OEOmega2` | No | `OpenEye::OEChem`, `OpenEye::OEMMFF` |
+| `OpenEye::OEQuacpac` | No | `OpenEye::OEChem`, `OpenEye::OESzybki`, `OpenEye::OEAmber`, `OpenEye::OEAM1BCC` |
+| `OpenEye::OEOmega2` | No | `OpenEye::OEChem`, `OpenEye::OEMMFF`, `OpenEye::OESmirnoff` |
 | `OpenEye::OESheffield` | No | `OpenEye::OEChem`, `OpenEye::OEMolPotential`, `OpenEye::OEFizzChem`, `OpenEye::OEGrid`, `OpenEye::OEZap` |
 | `OpenEye::OESpruce` | No | `OpenEye::OEChem`, `OpenEye::OEBio`, `OpenEye::OESiteHopper` (+ `OEQuacpac`, `OEMMFF`, `OEOmega2`, `OESheffield` on SDK 2025+) |
 | `OpenEye::OEDepict` | No | `OpenEye::OEChem` |
