@@ -7,7 +7,9 @@ on:
 
 env:
   GCS_BUCKET: openeye-sdks
-  OPENEYE_VERSION: "2025.2.1"
+  # Single source of truth for the OpenEye release exercised by every job.
+  # Keep it in step with the SDK filenames in the matrix below.
+  OPENEYE_VERSION: "2026.1.0"
 
 jobs:
   test-linux:
@@ -17,16 +19,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # SDK filenames are spelled out rather than interpolated from
+        # OPENEYE_VERSION: the env context is not available in strategy.matrix,
+        # so ${{ env.* }} would expand to an empty string and the download would
+        # 404. Keep these in step with OPENEYE_VERSION above.
         include:
           - arch: x86_64
             runner: ubuntu-latest
             container: rockylinux:8
-            sdk: OpenEye-toolkits-2025.2.1-redhat-RHEL8-g++8.5-x64.tar.gz
+            sdk: OpenEye-toolkits-2026.1.0-redhat-RHEL8-g++8.5-x64.tar.gz
             dnf_repo: powertools
           - arch: aarch64
             runner: ubuntu-24.04-arm
             container: rockylinux:9
-            sdk: OpenEye-toolkits-2025.2.1-Ubuntu-22.04-g++11.11-aarch64.tar.gz
+            sdk: OpenEye-toolkits-2026.1.0-Ubuntu-22.04-g++11.11-aarch64.tar.gz
             dnf_repo: crb
 
     runs-on: ${{ matrix.runner }}
@@ -111,7 +117,7 @@ jobs:
           mkdir -p ${{ runner.temp }}/openeye
           curl -fsSL \
             -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
-            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/OpenEye-toolkits-2025.2.1-macOS-14.8-clang++16-universal.tar.gz" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/OpenEye-toolkits-${{ env.OPENEYE_VERSION }}-macOS-14-clang++16-universal.tar.gz" \
             -o /tmp/sdk.tar.gz
           tar -xzf /tmp/sdk.tar.gz -C ${{ runner.temp }}/openeye --strip-components=2
           ls -la ${{ runner.temp }}/openeye/
@@ -177,7 +183,7 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/openeye-extract"
           curl -fsSL \
             -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
-            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/${{ vars.SDK_WINDOWS }}" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/OpenEye-toolkits-${{ env.OPENEYE_VERSION }}-win-x64-MD.zip" \
             -o "${RUNNER_TEMP}/sdk.zip"
           unzip -q "${RUNNER_TEMP}/sdk.zip" -d "${RUNNER_TEMP}/openeye-extract"
           sdk_inner=$(find "${RUNNER_TEMP}/openeye-extract" -maxdepth 1 -mindepth 1 -type d | head -n1)
