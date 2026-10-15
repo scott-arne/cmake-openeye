@@ -443,6 +443,8 @@ OPENEYE_EXPECTED_LIBS = [${_EXPECTED_LIBS}]
     # Caller-supplied facts about this build, one assignment per entry. The
     # caller writes them verbatim, so anything the generated module should say
     # that this helper has no business knowing goes here.
+    # Entries are CMake list elements, so one containing ';' is split into
+    # several lines, as with every other list argument of this function.
     foreach(_EXTRA ${ARG_EXTRA_BUILD_INFO})
         string(APPEND _BUILD_INFO_CONTENT "${_EXTRA}\n")
     endforeach()

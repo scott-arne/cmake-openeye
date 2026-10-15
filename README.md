@@ -162,7 +162,7 @@ openeye_add_swig_module(
 | `COMPILE_DEFS` | No | Additional preprocessor definitions for the extension module. |
 | `EXTRA_INSTALL_TARGETS` | No | Additional CMake targets to install alongside the extension. |
 | `EXPECTED_LIB_VARS` | No | CMake variables holding paths to OpenEye shared libraries. Used to populate `_build_info.py` for runtime compatibility checks. |
-| `EXTRA_BUILD_INFO` | No | Extra lines for `_build_info.py`, each a complete `NAME = value` assignment written verbatim. |
+| `EXTRA_BUILD_INFO` | No | Extra lines for `_build_info.py`, each a complete `NAME = value` assignment written verbatim. Like every list argument, an entry cannot contain `;`, which CMake treats as a list separator. |
 | `INIT_PY` | No | Path to a `__init__.py` file to install into the package directory. |
 
 #### Usage
