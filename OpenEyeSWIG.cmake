@@ -55,10 +55,33 @@ function(openeye_add_swig_module)
     # 1. Find SWIG
     # -------------------------------------------------------------------------
     if(ARG_STABLE_ABI)
-        find_package(SWIG 4.2 REQUIRED)
+        # SWIG 4.4.0 picks Python 3.13-only C API calls (PyImport_AddModuleRef,
+        # PyDict_GetItemStringRef, PyType_GetFullyQualifiedName) from the
+        # header version instead of Py_LIMITED_API, so its stable-ABI wrapper
+        # does not compile against Python 3.13+ headers. Fixed in SWIG 4.4.1
+        # (swig/swig#3283). The lookup is not REQUIRED so the failure can say
+        # why; FindSWIG still skips unsuitable candidates on PATH.
+        find_package(SWIG 4.4.1)
+        if(NOT SWIG_FOUND)
+            set(_OE_SWIG_FOUND_NOTE "")
+            if(SWIG_VERSION)
+                set(_OE_SWIG_FOUND_NOTE
+                    " Found SWIG ${SWIG_VERSION} at ${SWIG_EXECUTABLE}.")
+            endif()
+            message(FATAL_ERROR
+                "OpenEyeSWIG: STABLE_ABI=ON requires SWIG 4.4.1 or newer."
+                "${_OE_SWIG_FOUND_NOTE} SWIG 4.4.0, which Ubuntu 26.04 ships "
+                "as /usr/bin/swig, generates stable-ABI wrappers that call "
+                "Python 3.13-only functions and fail to compile against Python "
+                "3.13+ headers. Install a newer SWIG (pip install swig==4.5.1) "
+                "and pass -DSWIG_EXECUTABLE=<path>. In an existing build "
+                "directory, delete CMakeCache.txt as well: CMake caches the "
+                "old SWIG's version.")
+        endif()
     else()
         find_package(SWIG 4.0 REQUIRED)
     endif()
+    message(STATUS "OpenEyeSWIG: using SWIG ${SWIG_VERSION} (${SWIG_EXECUTABLE})")
 
     # -------------------------------------------------------------------------
     # 2. Find Python3 (with SABIModule when STABLE_ABI is ON)
