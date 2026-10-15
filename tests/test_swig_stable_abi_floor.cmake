@@ -78,7 +78,7 @@ _configure_case(stable_440 4.4.0 ON _out)
 if(NOT _out MATCHES "${_floor_text}")
     message(FATAL_ERROR "FAIL: STABLE_ABI=ON accepted SWIG 4.4.0. Output: ${_out}")
 endif()
-if(NOT _out MATCHES "4\\.4\\.0")
+if(NOT _out MATCHES "Found SWIG 4\\.4\\.0 at")
     message(FATAL_ERROR "FAIL: the floor message does not name the rejected version. Output: ${_out}")
 endif()
 
