@@ -31,6 +31,7 @@ openeye_add_swig_module(
     LINK_LIBS abi3_fixture_core
     PYTHON_OUTPUT_DIR ${_OUTPUT_DIR}
     STABLE_ABI ON
+    EXTRA_BUILD_INFO "FIXTURE_EXTRA = \"present\""
     SWIG_FLAGS "-I${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
@@ -47,3 +48,12 @@ if(WIN32)
         PASS_REGULAR_EXPRESSION "PASS: extension imports python3.dll only"
     )
 endif()
+
+# EXTRA_BUILD_INFO entries are written verbatim into _build_info.py.
+add_test(
+    NAME abi3_fixture_extra_build_info
+    COMMAND ${CMAKE_COMMAND} -E cat ${CMAKE_CURRENT_BINARY_DIR}/_build_info.py
+)
+set_tests_properties(abi3_fixture_extra_build_info PROPERTIES
+    PASS_REGULAR_EXPRESSION "FIXTURE_EXTRA = \"present\""
+)
