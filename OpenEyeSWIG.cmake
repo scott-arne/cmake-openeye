@@ -19,6 +19,7 @@
       [EXTRA_INSTALL_TARGETS <targets...>]
       [EXPECTED_LIB_VARS <vars...>]
       [INIT_PY <path>]
+      [EXTRA_BUILD_INFO <"NAME = value"...>]
   )
 #]============================================================================]
 
@@ -26,7 +27,7 @@ function(openeye_add_swig_module)
     # Parse arguments
     set(_OPTIONS "")
     set(_ONE_VALUE_ARGS NAME SWIG_FILE PYTHON_OUTPUT_DIR STABLE_ABI INIT_PY)
-    set(_MULTI_VALUE_ARGS LINK_LIBS SWIG_FLAGS COMPILE_DEFS EXTRA_INSTALL_TARGETS EXPECTED_LIB_VARS)
+    set(_MULTI_VALUE_ARGS LINK_LIBS SWIG_FLAGS COMPILE_DEFS EXTRA_INSTALL_TARGETS EXPECTED_LIB_VARS EXTRA_BUILD_INFO)
     cmake_parse_arguments(ARG "${_OPTIONS}" "${_ONE_VALUE_ARGS}" "${_MULTI_VALUE_ARGS}" ${ARGN})
 
     # Validate required arguments
@@ -55,10 +56,33 @@ function(openeye_add_swig_module)
     # 1. Find SWIG
     # -------------------------------------------------------------------------
     if(ARG_STABLE_ABI)
-        find_package(SWIG 4.2 REQUIRED)
+        # SWIG 4.4.0 picks Python 3.13-only C API calls (PyImport_AddModuleRef,
+        # PyDict_GetItemStringRef, PyType_GetFullyQualifiedName) from the
+        # header version instead of Py_LIMITED_API, so its stable-ABI wrapper
+        # does not compile against Python 3.13+ headers. Fixed in SWIG 4.4.1
+        # (swig/swig#3283). The lookup is not REQUIRED so the failure can say
+        # why; FindSWIG still skips unsuitable candidates on PATH.
+        find_package(SWIG 4.4.1)
+        if(NOT SWIG_FOUND)
+            set(_OE_SWIG_FOUND_NOTE "")
+            if(SWIG_VERSION)
+                set(_OE_SWIG_FOUND_NOTE
+                    " Found SWIG ${SWIG_VERSION} at ${SWIG_EXECUTABLE}.")
+            endif()
+            message(FATAL_ERROR
+                "OpenEyeSWIG: STABLE_ABI=ON requires SWIG 4.4.1 or newer."
+                "${_OE_SWIG_FOUND_NOTE} SWIG 4.4.0, which Ubuntu 26.04 ships "
+                "as /usr/bin/swig, generates stable-ABI wrappers that call "
+                "Python 3.13-only functions and fail to compile against Python "
+                "3.13+ headers. Install a newer SWIG (pip install swig==4.5.1) "
+                "and pass -DSWIG_EXECUTABLE=<path>. In an existing build "
+                "directory, delete CMakeCache.txt as well: CMake caches the "
+                "old SWIG's version.")
+        endif()
     else()
         find_package(SWIG 4.0 REQUIRED)
     endif()
+    message(STATUS "OpenEyeSWIG: using SWIG ${SWIG_VERSION} (${SWIG_EXECUTABLE})")
 
     # -------------------------------------------------------------------------
     # 2. Find Python3 (with SABIModule when STABLE_ABI is ON)
@@ -288,6 +312,8 @@ function(openeye_add_swig_module)
             )
         endif()
 
+        # A WARNING rather than FATAL_ERROR: this block also runs in wheel
+        # builds, which do not use the patched copy.
         if(_DEV_OE_LIB_DIR)
             if(APPLE)
                 find_program(INSTALL_NAME_TOOL install_name_tool)
@@ -298,6 +324,15 @@ function(openeye_add_swig_module)
                         COMMAND codesign -f -s - ${ARG_PYTHON_OUTPUT_DIR}/$<TARGET_FILE_NAME:${_TARGET_NAME}>
                         COMMENT "Adding OpenEye RPATH for editable dev install (${ARG_NAME})"
                     )
+                else()
+                    message(WARNING
+                        "OpenEyeSWIG: install_name_tool not found, so the "
+                        "${ARG_NAME} extension copied to ${ARG_PYTHON_OUTPUT_DIR} "
+                        "gets no RPATH entry for ${_DEV_OE_LIB_DIR}, and an "
+                        "editable install will fail to load the OpenEye "
+                        "libraries. Install the Xcode Command Line Tools "
+                        "(xcode-select --install) and reconfigure. Wheel builds "
+                        "do not need it.")
                 endif()
             elseif(UNIX)
                 find_program(PATCHELF patchelf)
@@ -307,6 +342,15 @@ function(openeye_add_swig_module)
                             ${ARG_PYTHON_OUTPUT_DIR}/$<TARGET_FILE_NAME:${_TARGET_NAME}>
                         COMMENT "Adding OpenEye RPATH for editable dev install (${ARG_NAME})"
                     )
+                else()
+                    message(WARNING
+                        "OpenEyeSWIG: patchelf not found, so the ${ARG_NAME} "
+                        "extension copied to ${ARG_PYTHON_OUTPUT_DIR} gets no "
+                        "RPATH entry for ${_DEV_OE_LIB_DIR}, and an editable "
+                        "install will fail to import with \"cannot open shared "
+                        "object file\". Install patchelf (pip install patchelf, "
+                        "or the distribution package) and reconfigure. Wheel "
+                        "builds do not need it.")
                 endif()
             endif()
         endif()
@@ -396,6 +440,14 @@ OPENEYE_BUILD_VERSION = \"${_BUILD_INFO_VERSION}\"
 OPENEYE_LIBRARY_TYPE = \"${OpenEye_LIBRARY_TYPE}\"
 OPENEYE_EXPECTED_LIBS = [${_EXPECTED_LIBS}]
 ")
+    # Caller-supplied facts about this build, one assignment per entry. The
+    # caller writes them verbatim, so anything the generated module should say
+    # that this helper has no business knowing goes here.
+    # Entries are CMake list elements, so one containing ';' is split into
+    # several lines, as with every other list argument of this function.
+    foreach(_EXTRA ${ARG_EXTRA_BUILD_INFO})
+        string(APPEND _BUILD_INFO_CONTENT "${_EXTRA}\n")
+    endforeach()
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/_build_info.py "${_BUILD_INFO_CONTENT}")
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/_build_info.py
         DESTINATION ${ARG_NAME}

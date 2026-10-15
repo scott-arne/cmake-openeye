@@ -309,6 +309,21 @@ set_tests_properties(sdk_version_fallbacks PROPERTIES
     PASS_REGULAR_EXPRESSION "PASS: SDK version fallbacks satisfied"
 )
 
+# ---------------------------------------------------------------------------
+# SWIG stable-ABI floor (script-mode, fake swig executables; no SDK needed)
+# ---------------------------------------------------------------------------
+add_test(
+    NAME swig_stable_abi_floor
+    COMMAND ${CMAKE_COMMAND}
+        -DCMAKE_OPENEYE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/..
+        -DDRIVER_DIR=${CMAKE_CURRENT_BINARY_DIR}/swig_stable_abi_floor_driver
+        -DDRIVER_GENERATOR=${CMAKE_GENERATOR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_swig_stable_abi_floor.cmake
+)
+set_tests_properties(swig_stable_abi_floor PROPERTIES
+    PASS_REGULAR_EXPRESSION "(PASS|SKIP)"
+)
+
 if(TARGET OpenEye::OEZap)
     target_link_libraries(test_all_libraries PRIVATE OpenEye::OEZap)
     target_compile_definitions(test_all_libraries PRIVATE HAS_OEZAP)
@@ -370,16 +385,16 @@ endforeach()
 # with STABLE_ABI=ON, then on Windows asserts the compiled .pyd links
 # python3.dll and not python3XX.dll. Guards the bug documented in
 # docs/bugs/2026-04-27-windows-stable-abi-wrong-python-dll.md.
-# Requires CMake 3.26+ (SABIModule) and SWIG 4.2+.
+# Requires CMake 3.26+ (SABIModule) and SWIG 4.4.1+.
 # ---------------------------------------------------------------------------
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.26")
-    find_package(SWIG 4.2 QUIET)
+    find_package(SWIG 4.4.1 QUIET)
     if(SWIG_FOUND)
         add_subdirectory(abi3_fixture)
     else()
-        message(STATUS "abi3 fixture skipped: SWIG 4.2+ not found "
-                       "(older SWIG generates wrappers that reference "
-                       "Python APIs outside the stable ABI)")
+        message(STATUS "abi3 fixture skipped: SWIG 4.4.1+ not found "
+                       "(older SWIG generates stable-ABI wrappers that do not compile "
+                       "against Python 3.13+ headers)")
     endif()
 else()
     message(STATUS "abi3 fixture skipped: requires CMake 3.26+")

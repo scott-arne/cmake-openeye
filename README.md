@@ -5,8 +5,9 @@ Shared CMake modules for C++ projects that depend on the [OpenEye](https://www.e
 ## Requirements
 
 - CMake 3.16 or later
-- SWIG 4.0 or later (for Python bindings only)
-- CMake 3.26 or later and SWIG 4.2 or later when `STABLE_ABI` is `ON`
+- SWIG 4.0 or later for Python bindings, and SWIG 4.4.1 or later when `STABLE_ABI` is `ON`. SWIG 4.4.0, which Ubuntu 26.04 ships as `/usr/bin/swig`, generates stable-ABI wrappers that do not compile against Python 3.13 or newer; `pip install swig==4.5.1` is the version the consuming projects' CI uses.
+- CMake 3.26 or later when `STABLE_ABI` is `ON`
+- `patchelf` on Linux for editable (in-tree) Python builds
 - Python 3.10 or later (for Python bindings only)
 - zlib (system)
 
@@ -156,11 +157,12 @@ openeye_add_swig_module(
 | `SWIG_FILE` | Yes | Path to the `.i` SWIG interface file. |
 | `LINK_LIBS` | Yes | Libraries to link. The first entry is treated as the primary project library and is copied alongside the extension. |
 | `PYTHON_OUTPUT_DIR` | Yes | Directory where the built module and wrapper are copied after each build (for editable installs). |
-| `STABLE_ABI` | No | When `ON`, compiles with `Py_LIMITED_API` targeting Python 3.10+. Requires CMake 3.26+ and SWIG 4.2+. Default: `OFF`. |
+| `STABLE_ABI` | No | When `ON`, compiles with `Py_LIMITED_API` targeting Python 3.10+. Requires CMake 3.26+ and SWIG 4.4.1+. Default: `OFF`. |
 | `SWIG_FLAGS` | No | Additional flags passed to the SWIG compiler. |
 | `COMPILE_DEFS` | No | Additional preprocessor definitions for the extension module. |
 | `EXTRA_INSTALL_TARGETS` | No | Additional CMake targets to install alongside the extension. |
 | `EXPECTED_LIB_VARS` | No | CMake variables holding paths to OpenEye shared libraries. Used to populate `_build_info.py` for runtime compatibility checks. |
+| `EXTRA_BUILD_INFO` | No | Extra lines for `_build_info.py`, each a complete `NAME = value` assignment written verbatim. Like every list argument, an entry cannot contain `;`, which CMake treats as a list separator. |
 | `INIT_PY` | No | Path to a `__init__.py` file to install into the package directory. |
 
 #### Usage
@@ -210,7 +212,7 @@ You can also create a `tests/CMakeUserPresets.json` (gitignored) with your own p
 These modules support macOS, Linux, and Windows. Platform-specific behavior includes:
 
 - **macOS**: Shared library discovery uses `.dylib` extensions. RPATH is set via `@loader_path`. The SWIG extension uses `-undefined dynamic_lookup` for Python symbol resolution and is re-signed with `codesign` after RPATH patching.
-- **Linux**: Shared library discovery uses `.so` extensions. RPATH is set via `$ORIGIN`. RPATH patching uses `patchelf` when available.
+- **Linux**: Shared library discovery uses `.so` extensions. RPATH is set via `$ORIGIN`. Editable builds use `patchelf` to add the OpenEye library directory to the extension's RPATH; without it the build warns and the editable import fails.
 - **Windows**: The OpenEye SDK is treated as static-only for link-time `.lib` inputs. `OPENEYE_USE_SHARED` is forced off, OpenEye runtime DLL discovery is delegated to `openeye.libs`, and stable-ABI extensions link `Python3::SABIModule` so abi3 wheels import `python3.dll` rather than a versioned `python3XX.dll`.
 
 ## License
