@@ -311,6 +311,8 @@ function(openeye_add_swig_module)
             )
         endif()
 
+        # A WARNING rather than FATAL_ERROR: this block also runs in wheel
+        # builds, which do not use the patched copy.
         if(_DEV_OE_LIB_DIR)
             if(APPLE)
                 find_program(INSTALL_NAME_TOOL install_name_tool)
@@ -321,6 +323,15 @@ function(openeye_add_swig_module)
                         COMMAND codesign -f -s - ${ARG_PYTHON_OUTPUT_DIR}/$<TARGET_FILE_NAME:${_TARGET_NAME}>
                         COMMENT "Adding OpenEye RPATH for editable dev install (${ARG_NAME})"
                     )
+                else()
+                    message(WARNING
+                        "OpenEyeSWIG: install_name_tool not found, so the "
+                        "${ARG_NAME} extension copied to ${ARG_PYTHON_OUTPUT_DIR} "
+                        "gets no RPATH entry for ${_DEV_OE_LIB_DIR}, and an "
+                        "editable install will fail to load the OpenEye "
+                        "libraries. Install the Xcode Command Line Tools "
+                        "(xcode-select --install) and reconfigure. Wheel builds "
+                        "do not need it.")
                 endif()
             elseif(UNIX)
                 find_program(PATCHELF patchelf)
@@ -330,6 +341,15 @@ function(openeye_add_swig_module)
                             ${ARG_PYTHON_OUTPUT_DIR}/$<TARGET_FILE_NAME:${_TARGET_NAME}>
                         COMMENT "Adding OpenEye RPATH for editable dev install (${ARG_NAME})"
                     )
+                else()
+                    message(WARNING
+                        "OpenEyeSWIG: patchelf not found, so the ${ARG_NAME} "
+                        "extension copied to ${ARG_PYTHON_OUTPUT_DIR} gets no "
+                        "RPATH entry for ${_DEV_OE_LIB_DIR}, and an editable "
+                        "install will fail to import with \"cannot open shared "
+                        "object file\". Install patchelf (pip install patchelf, "
+                        "or the distribution package) and reconfigure. Wheel "
+                        "builds do not need it.")
                 endif()
             endif()
         endif()
