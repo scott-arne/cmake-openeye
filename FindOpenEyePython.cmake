@@ -116,8 +116,10 @@ set(OpenEyePython_PLATFORM "${_OE_PLATFORM}")
 # Set variables for FindOpenEye.cmake / OpenEyeSWIG.cmake consumption.
 # OPENEYE_RUNTIME_LIB_DIR points at the wheel's openeye/libs/ directory (contains
 # versioned .so/.dylib on POSIX, flat .dll on Windows). It is consumed by
-# OpenEyeSWIG.cmake to compute RPATH on POSIX; Windows resolves DLLs at Python
-# import time via openeye.libs' os.add_dll_directory() side effect.
+# OpenEyeSWIG.cmake to compute RPATH on POSIX, and by FindOpenEye.cmake on
+# Windows to locate the DLLs to generate import libraries from. Windows has no
+# RPATH equivalent and the wheel adds nothing to the DLL search path, so the
+# consuming package's __init__ is responsible for os.add_dll_directory().
 set(OPENEYE_RUNTIME_LIB_DIR "${_OE_LIB_DIR}" CACHE PATH "Runtime shared-library directory from openeye-toolkits Python package" FORCE)
 set(OPENEYE_TOOLKITS_VERSION "${_OE_MARKETING_VERSION}" CACHE STRING "OpenEye toolkits marketing version from Python package")
 if(NOT WIN32)

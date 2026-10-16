@@ -10,7 +10,12 @@
 #
 # Options:
 #   OPENEYE_USE_SHARED - Prefer shared libraries over static (default: OFF)
-#                        Set to ON for wheels that depend on openeye-toolkits
+#                        Set to ON for wheels that depend on openeye-toolkits.
+#                        On Windows this needs a library directory holding the
+#                        wheel's DLLs; it is forced OFF for an SDK-only
+#                        configuration, which ships static archives alone.
+#   OPENEYE_IMPLIB_DIR - Where Windows import libraries generated from those
+#                        DLLs are written (default: ${CMAKE_BINARY_DIR}/openeye-implib)
 #
 # The following imported targets are created:
 #   OpenEye::OEChem     - OEChem library (main chemistry library)
@@ -77,13 +82,33 @@ if(OPENEYE_RUNTIME_LIB_DIR)
     message(STATUS "OpenEye: Runtime library directory: ${OPENEYE_RUNTIME_LIB_DIR}")
 endif()
 
-# Windows ships only static .libs in the SDK, and the openeye-toolkits Python
-# wheel has no MSVC import libraries at all — shared linking is not possible
-# on Windows. Force OPENEYE_USE_SHARED OFF so the rest of this module can
-# assume "shared mode" implies POSIX.
+# The Windows SDK ships only static .libs, and the openeye-toolkits Windows
+# wheel ships DLLs with no MSVC import libraries beside them. The missing
+# import libraries do not rule shared linking out, though: the wheel's DLLs
+# export the full C++ API, so an import library can be reconstructed from each
+# DLL's own export table (see OpenEyeWindowsImportLib.cmake). Shared mode on
+# Windows is therefore supported exactly where a DLL directory was named, and
+# forced off otherwise, which is every SDK-only configuration.
+set(_OPENEYE_WIN_DLL_DIR "")
 if(WIN32 AND OPENEYE_USE_SHARED)
-    message(STATUS "OpenEye: OPENEYE_USE_SHARED is not supported on Windows (SDK is static-only); forcing OFF")
-    set(OPENEYE_USE_SHARED OFF CACHE BOOL "" FORCE)
+    foreach(_OPENEYE_DLL_CANDIDATE IN ITEMS "${OPENEYE_LIB_DIR}" "${OPENEYE_RUNTIME_LIB_DIR}")
+        if(_OPENEYE_DLL_CANDIDATE AND NOT _OPENEYE_WIN_DLL_DIR)
+            file(GLOB _OPENEYE_CANDIDATE_DLLS "${_OPENEYE_DLL_CANDIDATE}/oechem*.dll")
+            if(_OPENEYE_CANDIDATE_DLLS)
+                set(_OPENEYE_WIN_DLL_DIR "${_OPENEYE_DLL_CANDIDATE}")
+            endif()
+        endif()
+    endforeach()
+    unset(_OPENEYE_DLL_CANDIDATE)
+    unset(_OPENEYE_CANDIDATE_DLLS)
+    if(_OPENEYE_WIN_DLL_DIR)
+        message(STATUS "OpenEye: Windows shared mode against the DLLs in ${_OPENEYE_WIN_DLL_DIR}")
+        include("${CMAKE_CURRENT_LIST_DIR}/OpenEyeWindowsImportLib.cmake")
+    else()
+        message(STATUS "OpenEye: OPENEYE_USE_SHARED found no OpenEye DLLs to link against "
+            "(the Windows SDK is static-only); forcing OFF")
+        set(OPENEYE_USE_SHARED OFF CACHE BOOL "" FORCE)
+    endif()
 endif()
 
 # Warn when using shared mode without a library directory override. POSIX uses
@@ -121,18 +146,36 @@ if(OPENEYE_LIB_DIR)
 elseif(OPENEYE_USE_SHARED AND OPENEYE_RUNTIME_LIB_DIR AND NOT WIN32)
     message(STATUS "OpenEye: Using runtime library directory for POSIX shared-link discovery: ${OPENEYE_RUNTIME_LIB_DIR}")
     set(_OPENEYE_LIB_SEARCH_PATHS ${OPENEYE_RUNTIME_LIB_DIR})
+elseif(OPENEYE_USE_SHARED AND _OPENEYE_WIN_DLL_DIR)
+    message(STATUS "OpenEye: Using the wheel DLL directory for Windows shared-link discovery: ${_OPENEYE_WIN_DLL_DIR}")
+    set(_OPENEYE_LIB_SEARCH_PATHS ${_OPENEYE_WIN_DLL_DIR})
 elseif(OPENEYE_INCLUDE_DIR)
     get_filename_component(_DEFAULT_LIB_DIR "${OPENEYE_INCLUDE_DIR}/../lib" ABSOLUTE)
     set(_OPENEYE_LIB_SEARCH_PATHS ${_DEFAULT_LIB_DIR})
 endif()
 
+# The one directory the versioned-shared-library globs below search. Empty
+# whenever shared mode is off, which is what keeps those globs from running
+# at all in static mode.
+set(_OPENEYE_SHARED_SEARCH_DIR "")
+if(OPENEYE_USE_SHARED)
+    if(WIN32)
+        set(_OPENEYE_SHARED_SEARCH_DIR "${_OPENEYE_WIN_DLL_DIR}")
+    elseif(OPENEYE_LIB_DIR)
+        set(_OPENEYE_SHARED_SEARCH_DIR "${OPENEYE_LIB_DIR}")
+    elseif(OPENEYE_RUNTIME_LIB_DIR)
+        set(_OPENEYE_SHARED_SEARCH_DIR "${OPENEYE_RUNTIME_LIB_DIR}")
+    endif()
+endif()
+
 # Set library search order based on preference (save/restore to not affect other finds)
 set(_SAVED_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
 if(OPENEYE_USE_SHARED)
-    # POSIX-only (Windows coerced OFF above). Prefer dylib/so over static.
+    # Prefer dylib/so over static. Windows is left alone: the DLLs are found
+    # by glob below, and the find_library fallback must still look for .lib.
     if(APPLE)
         set(CMAKE_FIND_LIBRARY_SUFFIXES .dylib .a)
-    else()
+    elseif(NOT WIN32)
         set(CMAKE_FIND_LIBRARY_SUFFIXES .so .a)
     endif()
     message(STATUS "OpenEye: Preferring shared libraries for dynamic linking")
@@ -152,23 +195,16 @@ endif()
 
 # Helper macro to find OpenEye library, handling versioned names (e.g., liboechem-4.3.0.1.dylib)
 macro(find_openeye_library VAR_NAME LIB_NAME)
-    # First try to find versioned shared library in the override directory
-    # (openeye-toolkits Python package). POSIX-only; OPENEYE_USE_SHARED is
-    # always OFF on Windows.
-    if(OPENEYE_USE_SHARED)
-        if(OPENEYE_LIB_DIR)
-            set(_OPENEYE_VERSIONED_SEARCH_DIR "${OPENEYE_LIB_DIR}")
-        elseif(OPENEYE_RUNTIME_LIB_DIR AND NOT WIN32)
-            set(_OPENEYE_VERSIONED_SEARCH_DIR "${OPENEYE_RUNTIME_LIB_DIR}")
-        else()
-            set(_OPENEYE_VERSIONED_SEARCH_DIR "")
-        endif()
-    endif()
-    if(_OPENEYE_VERSIONED_SEARCH_DIR)
+    # First try to find the versioned shared library in the openeye-toolkits
+    # package directory. The Windows wheel names its DLLs the same way the
+    # POSIX wheel names its dylibs, minus the "lib" prefix.
+    if(_OPENEYE_SHARED_SEARCH_DIR)
         if(APPLE)
-            file(GLOB _VERSIONED_LIB "${_OPENEYE_VERSIONED_SEARCH_DIR}/lib${LIB_NAME}-*.dylib")
+            file(GLOB _VERSIONED_LIB "${_OPENEYE_SHARED_SEARCH_DIR}/lib${LIB_NAME}-*.dylib")
+        elseif(WIN32)
+            file(GLOB _VERSIONED_LIB "${_OPENEYE_SHARED_SEARCH_DIR}/${LIB_NAME}-*.dll")
         else()
-            file(GLOB _VERSIONED_LIB "${_OPENEYE_VERSIONED_SEARCH_DIR}/lib${LIB_NAME}-*.so")
+            file(GLOB _VERSIONED_LIB "${_OPENEYE_SHARED_SEARCH_DIR}/lib${LIB_NAME}-*.so")
         endif()
         if(_VERSIONED_LIB)
             # Get the first match (should only be one)
@@ -229,20 +265,17 @@ find_openeye_library(OEDEPICT_LIBRARY oedepict)
 find_openeye_library(OEIUPAC_LIBRARY oeiupac)
 
 # Find bundled zstd library (OpenEye bundles this) - uses different naming.
-# Versioned-glob is POSIX-only (OPENEYE_USE_SHARED is always OFF on Windows).
 # On Windows the SDK ships zstd_static.lib; find_library below picks it up so
-# oeplatform's gzstd_* symbols resolve.
-if(OPENEYE_USE_SHARED)
-    if(OPENEYE_LIB_DIR)
-        set(_OPENEYE_ZSTD_SEARCH_DIR "${OPENEYE_LIB_DIR}")
-    elseif(OPENEYE_RUNTIME_LIB_DIR AND NOT WIN32)
-        set(_OPENEYE_ZSTD_SEARCH_DIR "${OPENEYE_RUNTIME_LIB_DIR}")
-    else()
-        set(_OPENEYE_ZSTD_SEARCH_DIR "")
+# oeplatform's gzstd_* symbols resolve in a static build. In a Windows shared
+# build the wheel's zstd.dll is what oeplatform.dll itself imports.
+if(_OPENEYE_SHARED_SEARCH_DIR)
+    file(GLOB _ZSTD_LIB
+        "${_OPENEYE_SHARED_SEARCH_DIR}/libzstd*.dylib"
+        "${_OPENEYE_SHARED_SEARCH_DIR}/libzstd*.so"
+    )
+    if(WIN32)
+        file(GLOB _ZSTD_LIB "${_OPENEYE_SHARED_SEARCH_DIR}/zstd*.dll")
     endif()
-endif()
-if(_OPENEYE_ZSTD_SEARCH_DIR)
-    file(GLOB _ZSTD_LIB "${_OPENEYE_ZSTD_SEARCH_DIR}/libzstd*.dylib" "${_OPENEYE_ZSTD_SEARCH_DIR}/libzstd*.so")
     if(_ZSTD_LIB)
         list(GET _ZSTD_LIB 0 OEZSTD_LIBRARY)
         message(STATUS "OpenEye: Found zstd: ${OEZSTD_LIBRARY}")
@@ -277,7 +310,14 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ${_SAVED_CMAKE_FIND_LIBRARY_SUFFIXES})
 if(NOT CMAKE_SCRIPT_MODE_FILE)
     find_package(ZLIB QUIET)
     if(NOT ZLIB_FOUND)
-        if(WIN32)
+        if(WIN32 AND OPENEYE_USE_SHARED)
+            # Nothing to satisfy: in a shared build the consumer links
+            # oeplatform's import library, not its internals, so the zlib
+            # OpenEye statically linked into oeplatform.dll never reaches our
+            # link line. Fetching zlib here would only add a build-time
+            # dependency no target references.
+            message(STATUS "OpenEye: ZLIB not found; not needed for a Windows shared build")
+        elseif(WIN32)
             message(STATUS "OpenEye: ZLIB not found; fetching zlib v1.3.1 for Windows build")
             include(FetchContent)
             set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -311,12 +351,14 @@ find_package_handle_standard_args(OpenEye
         OEMATH_LIBRARY
 )
 
-# Determine library type based on file extension. Windows .lib is always a
-# static archive here (the SDK ships no DLL import libraries and the wheel
-# ships no .lib files at all).
+# Determine library type based on file extension. A Windows .lib is always a
+# static archive here: the SDK ships no DLL import libraries, and the import
+# libraries this module generates are named after the DLL they came from, so
+# a shared Windows build resolves OEChem to a .dll.
 if(OpenEye_FOUND)
     get_filename_component(OECHEM_NAME "${OECHEM_LIBRARY}" NAME)
-    if(OECHEM_NAME MATCHES "\\.dylib$" OR OECHEM_NAME MATCHES "\\.so$" OR OECHEM_NAME MATCHES "\\.so\\.")
+    if(OECHEM_NAME MATCHES "\\.dylib$" OR OECHEM_NAME MATCHES "\\.so$" OR OECHEM_NAME MATCHES "\\.so\\."
+            OR OECHEM_NAME MATCHES "\\.dll$")
         set(OPENEYE_LIBRARY_TYPE SHARED)
         message(STATUS "OpenEye: Using shared libraries (dynamic linking)")
     else()
@@ -418,6 +460,28 @@ else()
 endif()
 
 if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
+    # UNKNOWN IMPORTED carries only IMPORTED_LOCATION, which on Windows means
+    # "link this file". That cannot describe a DLL, which is loaded at runtime
+    # and linked through a separate import library. SHARED IMPORTED is the
+    # only kind that holds both, so the Windows shared build declares its
+    # targets that way and fills in IMPORTED_IMPLIB below. Everywhere else the
+    # kind stays UNKNOWN: the same target may resolve to a static archive or a
+    # shared library and the file extension is the only thing that says which.
+    if(WIN32 AND OPENEYE_USE_SHARED)
+        set(_OPENEYE_IMPORTED_KIND SHARED)
+    else()
+        set(_OPENEYE_IMPORTED_KIND UNKNOWN)
+    endif()
+    set(_OPENEYE_IMPORTED_TARGETS "")
+
+    # Every OpenEye:: target is declared through this macro so the Windows
+    # pass below can reach all of them without a hand-maintained list that
+    # would silently miss the next target someone adds.
+    macro(_openeye_add_imported_target _target)
+        add_library(${_target} ${_OPENEYE_IMPORTED_KIND} IMPORTED)
+        list(APPEND _OPENEYE_IMPORTED_TARGETS ${_target})
+    endmacro()
+
     # Create imported target for zstd if found. The bundled static zstd uses
     # pthread_create/join internally (see libzstd pool.c), so pre-glibc-2.34
     # systems (RHEL 8, Ubuntu 20.04) need an explicit -lpthread on the link
@@ -425,7 +489,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     # to know about this.
     if(OEZSTD_LIBRARY AND NOT TARGET OpenEye::zstd)
         find_package(Threads)
-        add_library(OpenEye::zstd UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::zstd)
         set_target_properties(OpenEye::zstd PROPERTIES
             IMPORTED_LOCATION "${OEZSTD_LIBRARY}"
         )
@@ -436,22 +500,29 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         endif()
     endif()
 
-    # OEPlatform depends on zlib and zstd. Even on Windows (where oeplatform.lib
-    # is a static archive with unresolved gzstd_*/zlib externs), we must link
-    # both. The OpenEye Windows SDK ships z.lib and zstd_static.lib precisely
-    # so downstream consumers can satisfy those externs.
-    add_library(OpenEye::OEPlatform UNKNOWN IMPORTED)
+    # OEPlatform depends on zlib and zstd. Even in a static Windows build
+    # (where oeplatform.lib is an archive with unresolved gzstd_*/zlib
+    # externs), we must link both. The OpenEye Windows SDK ships z.lib and
+    # zstd_static.lib precisely so downstream consumers can satisfy those
+    # externs.
+    _openeye_add_imported_target(OpenEye::OEPlatform)
     set_target_properties(OpenEye::OEPlatform PROPERTIES
         IMPORTED_LOCATION "${OEPLATFORM_LIBRARY}"
         INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
     )
+    # ZLIB::ZLIB is absent only in a Windows shared build, where the zlib
+    # OpenEye statically linked into oeplatform.dll is already behind the DLL
+    # boundary and nothing on our link line references it.
+    set(_OPENEYE_PLATFORM_DEPS "")
     if(OEZSTD_LIBRARY)
+        list(APPEND _OPENEYE_PLATFORM_DEPS "OpenEye::zstd")
+    endif()
+    if(TARGET ZLIB::ZLIB)
+        list(APPEND _OPENEYE_PLATFORM_DEPS "ZLIB::ZLIB")
+    endif()
+    if(_OPENEYE_PLATFORM_DEPS)
         set_property(TARGET OpenEye::OEPlatform APPEND PROPERTY
-            INTERFACE_LINK_LIBRARIES "OpenEye::zstd;ZLIB::ZLIB"
-        )
-    else()
-        set_property(TARGET OpenEye::OEPlatform APPEND PROPERTY
-            INTERFACE_LINK_LIBRARIES "ZLIB::ZLIB"
+            INTERFACE_LINK_LIBRARIES "${_OPENEYE_PLATFORM_DEPS}"
         )
     endif()
 
@@ -462,7 +533,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
         )
     endif()
 
-    add_library(OpenEye::OESystem UNKNOWN IMPORTED)
+    _openeye_add_imported_target(OpenEye::OESystem)
     set_target_properties(OpenEye::OESystem PROPERTIES
         IMPORTED_LOCATION "${OESYSTEM_LIBRARY}"
         INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -470,7 +541,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     )
 
     # OEMath depends on OESystem (oemath/matrix.h includes oesystem.h)
-    add_library(OpenEye::OEMath UNKNOWN IMPORTED)
+    _openeye_add_imported_target(OpenEye::OEMath)
     set_target_properties(OpenEye::OEMath PROPERTIES
         IMPORTED_LOCATION "${OEMATH_LIBRARY}"
         INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -478,7 +549,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     )
 
     # OEChem depends on OESystem and OEMath
-    add_library(OpenEye::OEChem UNKNOWN IMPORTED)
+    _openeye_add_imported_target(OpenEye::OEChem)
     set_target_properties(OpenEye::OEChem PROPERTIES
         IMPORTED_LOCATION "${OECHEM_LIBRARY}"
         INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -487,7 +558,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
 
     # Optional: OEGraphSim depends on OEChem
     if(OEGRAPHSIM_LIBRARY)
-        add_library(OpenEye::OEGraphSim UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEGraphSim)
         set_target_properties(OpenEye::OEGraphSim PROPERTIES
             IMPORTED_LOCATION "${OEGRAPHSIM_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -498,7 +569,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
 
     # Optional: OEMedChem depends on OEChem
     if(OEMEDCHEM_LIBRARY)
-        add_library(OpenEye::OEMedChem UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEMedChem)
         set_target_properties(OpenEye::OEMedChem PROPERTIES
             IMPORTED_LOCATION "${OEMEDCHEM_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -509,7 +580,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
 
     # Optional: OEFizzChem depends on OEChem
     if(OEFIZZCHEM_LIBRARY)
-        add_library(OpenEye::OEFizzChem UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEFizzChem)
         set_target_properties(OpenEye::OEFizzChem PROPERTIES
             IMPORTED_LOCATION "${OEFIZZCHEM_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -519,7 +590,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
 
     # Optional: OEGrid depends on OESystem and OEFizzChem (if found)
     if(OEGRID_LIBRARY)
-        add_library(OpenEye::OEGrid UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEGrid)
         set_target_properties(OpenEye::OEGrid PROPERTIES
             IMPORTED_LOCATION "${OEGRID_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -538,7 +609,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
 
     # Optional: OEBio depends on OEChem and OEGrid (uses OESkewGrid, OEScalarGrid, OEXtal)
     if(OEBIO_LIBRARY)
-        add_library(OpenEye::OEBio UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEBio)
         set_target_properties(OpenEye::OEBio PROPERTIES
             IMPORTED_LOCATION "${OEBIO_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -557,7 +628,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
 
     # v1.1.0: Geometry and optimization targets
     if(OEOPT_LIBRARY)
-        add_library(OpenEye::OEOpt UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEOpt)
         set_target_properties(OpenEye::OEOpt PROPERTIES
             IMPORTED_LOCATION "${OEOPT_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -567,7 +638,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OEMOLPOTENTIAL_LIBRARY AND TARGET OpenEye::OEOpt)
-        add_library(OpenEye::OEMolPotential UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEMolPotential)
         set_target_properties(OpenEye::OEMolPotential PROPERTIES
             IMPORTED_LOCATION "${OEMOLPOTENTIAL_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -577,7 +648,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OEHERMITE_LIBRARY AND TARGET OpenEye::OEOpt)
-        add_library(OpenEye::OEHermite UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEHermite)
         set_target_properties(OpenEye::OEHermite PROPERTIES
             IMPORTED_LOCATION "${OEHERMITE_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -595,7 +666,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
             AND TARGET OpenEye::OEOpt
             AND TARGET OpenEye::OEMolPotential
             AND TARGET OpenEye::OEHermite)
-        add_library(OpenEye::OEShape UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEShape)
         set_target_properties(OpenEye::OEShape PROPERTIES
             IMPORTED_LOCATION "${OESHAPE_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -605,7 +676,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OEZAP_LIBRARY AND TARGET OpenEye::OEGrid)
-        add_library(OpenEye::OEZap UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEZap)
         set_target_properties(OpenEye::OEZap PROPERTIES
             IMPORTED_LOCATION "${OEZAP_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -617,7 +688,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     # OESpicoli references OEBio symbols (OEGetResidues, OEIsNTerminalAtom, OEIsWater)
     # in its archive, so OEBio is a hard runtime dep — guard on it here.
     if(OESPICOLI_LIBRARY AND TARGET OpenEye::OEZap AND TARGET OpenEye::OEBio)
-        add_library(OpenEye::OESpicoli UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OESpicoli)
         set_target_properties(OpenEye::OESpicoli PROPERTIES
             IMPORTED_LOCATION "${OESPICOLI_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -627,7 +698,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OESITEHOPPER_LIBRARY AND TARGET OpenEye::OEShape AND TARGET OpenEye::OESpicoli)
-        add_library(OpenEye::OESiteHopper UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OESiteHopper)
         set_target_properties(OpenEye::OESiteHopper PROPERTIES
             IMPORTED_LOCATION "${OESITEHOPPER_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -643,7 +714,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     # Not guarded here because OEMolPotential is a core lib that should always
     # be present alongside OEMMFF in any SDK shipping force-field support.
     if(OEMMFF_LIBRARY AND TARGET OpenEye::OEMolPotential)
-        add_library(OpenEye::OEMMFF UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEMMFF)
         set_target_properties(OpenEye::OEMMFF PROPERTIES
             IMPORTED_LOCATION "${OEMMFF_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -656,7 +727,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     # separate archives. Model them explicitly so static consumers do not need
     # to know private toolkit-library closure details.
     if(OEAMBER_LIBRARY AND TARGET OpenEye::OEMolPotential)
-        add_library(OpenEye::OEAmber UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEAmber)
         set_target_properties(OpenEye::OEAmber PROPERTIES
             IMPORTED_LOCATION "${OEAMBER_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -666,7 +737,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OESMIRNOFF_LIBRARY AND TARGET OpenEye::OEMolPotential AND TARGET OpenEye::OEAmber)
-        add_library(OpenEye::OESmirnoff UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OESmirnoff)
         set_target_properties(OpenEye::OESmirnoff PROPERTIES
             IMPORTED_LOCATION "${OESMIRNOFF_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -676,7 +747,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OEAM1_LIBRARY AND TARGET OpenEye::OEMolPotential)
-        add_library(OpenEye::OEAM1 UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEAM1)
         set_target_properties(OpenEye::OEAM1 PROPERTIES
             IMPORTED_LOCATION "${OEAM1_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -686,7 +757,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OEAM1BCC_LIBRARY AND TARGET OpenEye::OEAM1)
-        add_library(OpenEye::OEAM1BCC UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEAM1BCC)
         set_target_properties(OpenEye::OEAM1BCC PROPERTIES
             IMPORTED_LOCATION "${OEAM1BCC_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -696,7 +767,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OEFF_LIBRARY AND TARGET OpenEye::OEMolPotential AND TARGET OpenEye::OESmirnoff AND TARGET OpenEye::OEAmber)
-        add_library(OpenEye::OEFF UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEFF)
         set_target_properties(OpenEye::OEFF PROPERTIES
             IMPORTED_LOCATION "${OEFF_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -709,7 +780,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     # (e.g. OEBio::OEDesignUnitImpl::SetComponentsFromData, OEBio::OEAtomMatchResidue)
     # in its archive, so OEBio is a hard runtime dep — guard on it here.
     if(OESZYBKI_LIBRARY AND TARGET OpenEye::OEMMFF AND TARGET OpenEye::OEFF AND TARGET OpenEye::OEBio)
-        add_library(OpenEye::OESzybki UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OESzybki)
         set_target_properties(OpenEye::OESzybki PROPERTIES
             IMPORTED_LOCATION "${OESZYBKI_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -719,7 +790,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OEQUACPAC_LIBRARY AND TARGET OpenEye::OESzybki AND TARGET OpenEye::OEAmber AND TARGET OpenEye::OEAM1BCC)
-        add_library(OpenEye::OEQuacpac UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEQuacpac)
         set_target_properties(OpenEye::OEQuacpac PROPERTIES
             IMPORTED_LOCATION "${OEQUACPAC_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -729,7 +800,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OEOMEGA2_LIBRARY AND TARGET OpenEye::OEMMFF AND TARGET OpenEye::OESmirnoff)
-        add_library(OpenEye::OEOmega2 UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEOmega2)
         set_target_properties(OpenEye::OEOmega2 PROPERTIES
             IMPORTED_LOCATION "${OEOMEGA2_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -754,7 +825,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
             AND TARGET OpenEye::OEFizzChem
             AND TARGET OpenEye::OEGrid
             AND TARGET OpenEye::OEZap)
-        add_library(OpenEye::OESheffield UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OESheffield)
         set_target_properties(OpenEye::OESheffield PROPERTIES
             IMPORTED_LOCATION "${OESHEFFIELD_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -785,7 +856,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OESPRUCE_LIBRARY AND _OPENEYE_SPRUCE_DEPS_AVAILABLE)
-        add_library(OpenEye::OESpruce UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OESpruce)
         set_target_properties(OpenEye::OESpruce PROPERTIES
             IMPORTED_LOCATION "${OESPRUCE_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -804,7 +875,7 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
 
     # v1.1.0: Depiction / nomenclature targets
     if(OEDEPICT_LIBRARY)
-        add_library(OpenEye::OEDepict UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEDepict)
         set_target_properties(OpenEye::OEDepict PROPERTIES
             IMPORTED_LOCATION "${OEDEPICT_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
@@ -814,13 +885,47 @@ if(OpenEye_FOUND AND NOT TARGET OpenEye::OEChem AND NOT CMAKE_SCRIPT_MODE_FILE)
     endif()
 
     if(OEIUPAC_LIBRARY)
-        add_library(OpenEye::OEIUPAC UNKNOWN IMPORTED)
+        _openeye_add_imported_target(OpenEye::OEIUPAC)
         set_target_properties(OpenEye::OEIUPAC PROPERTIES
             IMPORTED_LOCATION "${OEIUPAC_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${OPENEYE_INCLUDE_DIR}"
             INTERFACE_LINK_LIBRARIES "OpenEye::OEChem"
         )
         set(OpenEye_IUPAC_FOUND TRUE)
+    endif()
+
+    # Windows shared mode: finish the targets the POSIX path does not need.
+    #
+    # IMPORTED_LOCATION now names a .dll, which the linker cannot consume, so
+    # each target also needs an IMPORTED_IMPLIB. The wheel ships none, so one
+    # is reconstructed per DLL from its export table.
+    #
+    # OE_USE_DLL is what switches the SDK headers' OECHEM_API-style macros
+    # from nothing to __declspec(dllimport) (oedefines.h). Without it the
+    # compiler emits direct references where the linker expects __imp_ ones.
+    # It belongs on the interface of every target rather than only on
+    # OEPlatform, so that a consumer's translation unit sees the same
+    # declarations whichever OpenEye header it reaches first.
+    if(WIN32 AND OPENEYE_USE_SHARED)
+        set(OPENEYE_IMPLIB_DIR "${CMAKE_BINARY_DIR}/openeye-implib"
+            CACHE PATH "Directory for import libraries generated from the OpenEye DLLs")
+        foreach(_OPENEYE_TARGET IN LISTS _OPENEYE_IMPORTED_TARGETS)
+            get_target_property(_OPENEYE_TARGET_DLL ${_OPENEYE_TARGET} IMPORTED_LOCATION)
+            openeye_generate_import_library(
+                DLL "${_OPENEYE_TARGET_DLL}"
+                OUTPUT_DIR "${OPENEYE_IMPLIB_DIR}"
+                OUTPUT_VARIABLE _OPENEYE_TARGET_IMPLIB
+            )
+            set_target_properties(${_OPENEYE_TARGET} PROPERTIES
+                IMPORTED_IMPLIB "${_OPENEYE_TARGET_IMPLIB}"
+            )
+            set_property(TARGET ${_OPENEYE_TARGET} APPEND PROPERTY
+                INTERFACE_COMPILE_DEFINITIONS OE_USE_DLL
+            )
+        endforeach()
+        unset(_OPENEYE_TARGET)
+        unset(_OPENEYE_TARGET_DLL)
+        unset(_OPENEYE_TARGET_IMPLIB)
     endif()
 
 endif()

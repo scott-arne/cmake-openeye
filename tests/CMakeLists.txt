@@ -268,6 +268,21 @@ set_tests_properties(runtime_lib_dir_shared PROPERTIES
     PASS_REGULAR_EXPRESSION "(PASS|SKIP)"
 )
 
+# ---------------------------------------------------------------------------
+# Windows import-library generation (script-mode, runs on every host).
+# The generator needs dumpbin and lib, but the classification that decides
+# which exports are DATA is pure text processing and is tested everywhere.
+# ---------------------------------------------------------------------------
+add_test(
+    NAME windows_import_lib
+    COMMAND ${CMAKE_COMMAND}
+        -DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/..
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_windows_import_lib.cmake
+)
+set_tests_properties(windows_import_lib PROPERTIES
+    PASS_REGULAR_EXPRESSION "PASS: Windows import-library parsing satisfied"
+)
+
 add_test(
     NAME optional_target_closure
     COMMAND ${CMAKE_COMMAND}

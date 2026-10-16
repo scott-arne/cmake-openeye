@@ -38,7 +38,8 @@ Set one of the following to point to your OpenEye installation:
 
 | Option | Default | Description |
 |---|---|---|
-| `OPENEYE_USE_SHARED` | `OFF` | Prefer shared libraries (`.dylib`/`.so`) over static (`.a`). Set to `ON` when building wheels that depend on `openeye-toolkits`. |
+| `OPENEYE_USE_SHARED` | `OFF` | Prefer shared libraries (`.dylib`/`.so`/`.dll`) over static (`.a`/`.lib`). Set to `ON` when building wheels that depend on `openeye-toolkits`. On Windows it also requires `OPENEYE_LIB_DIR` or `OPENEYE_RUNTIME_LIB_DIR` to name a directory containing the wheel's DLLs, and is forced off otherwise. |
+| `OPENEYE_IMPLIB_DIR` | `${CMAKE_BINARY_DIR}/openeye-implib` | Windows only: where import libraries generated from the wheel's DLLs are written. |
 
 #### Imported Targets
 
@@ -104,9 +105,13 @@ target_link_libraries(my_app PRIVATE OpenEye::OEChem)
 
 ### FindOpenEyePython
 
-Auto-discovers OpenEye shared libraries from an installed `openeye-toolkits` Python package. It queries the Python environment at configure time and sets `OPENEYE_RUNTIME_LIB_DIR` and `OPENEYE_TOOLKITS_VERSION`. On POSIX, where the wheel contains linkable `.dylib`/`.so` files, it also sets `OPENEYE_LIB_DIR` and enables `OPENEYE_USE_SHARED` so that `FindOpenEye` selects those shared libraries. On Windows, the wheel contains runtime `.dll` files but no MSVC import libraries, so SDK static `.lib` files remain the link-time inputs.
+Auto-discovers OpenEye shared libraries from an installed `openeye-toolkits` Python package. It queries the Python environment at configure time and sets `OPENEYE_RUNTIME_LIB_DIR` and `OPENEYE_TOOLKITS_VERSION`. On POSIX, where the wheel contains linkable `.dylib`/`.so` files, it also sets `OPENEYE_LIB_DIR` and enables `OPENEYE_USE_SHARED` so that `FindOpenEye` selects those shared libraries. On Windows it sets neither, because the wheel's directory is not a link-time directory for a static build; pass `OPENEYE_USE_SHARED=ON` explicitly to link the wheel's DLLs there.
 
 `Python3_EXECUTABLE` must be available before calling this module. Call `find_package(Python3 COMPONENTS Interpreter)` first.
+
+### OpenEyeWindowsImportLib
+
+Included by `FindOpenEye` on Windows when shared mode is in use; it is not meant to be used directly. It provides `openeye_generate_import_library()`, which runs `dumpbin` over a DLL's export table and section table, writes a module-definition file marking exported data as `DATA`, and runs `lib /DEF:` to produce an import library. Exports bind by name, never by ordinal. Generation is skipped when an existing import library is newer than its DLL, so only the first configure pays for it. `dumpbin` and `lib` must be on `PATH`, which a Visual Studio developer environment provides.
 
 #### Result Variables
 
@@ -211,7 +216,7 @@ These modules support macOS, Linux, and Windows. Platform-specific behavior incl
 
 - **macOS**: Shared library discovery uses `.dylib` extensions. RPATH is set via `@loader_path`. The SWIG extension uses `-undefined dynamic_lookup` for Python symbol resolution and is re-signed with `codesign` after RPATH patching.
 - **Linux**: Shared library discovery uses `.so` extensions. RPATH is set via `$ORIGIN`. RPATH patching uses `patchelf` when available.
-- **Windows**: The OpenEye SDK is treated as static-only for link-time `.lib` inputs. `OPENEYE_USE_SHARED` is forced off, OpenEye runtime DLL discovery is delegated to `openeye.libs`, and stable-ABI extensions link `Python3::SABIModule` so abi3 wheels import `python3.dll` rather than a versioned `python3XX.dll`.
+- **Windows**: The OpenEye SDK is static-only, so `OPENEYE_USE_SHARED` is forced off for an SDK-only configuration. With `OPENEYE_USE_SHARED=ON` and a library directory holding the `openeye-toolkits` wheel's DLLs, `FindOpenEye` links those DLLs instead: it reconstructs an import library per DLL from the DLL's own export table (the wheel ships none), declares `SHARED IMPORTED` targets carrying both `IMPORTED_LOCATION` and `IMPORTED_IMPLIB`, and puts `OE_USE_DLL` on their interface so the SDK headers switch to `__declspec(dllimport)`. Nothing in the wheel extends the DLL search path, so the consuming Python package's `__init__` must call `os.add_dll_directory()` on `openeye/libs` before importing the extension. Stable-ABI extensions link `Python3::SABIModule` so abi3 wheels import `python3.dll` rather than a versioned `python3XX.dll`.
 
 ## License
 
